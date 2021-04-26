@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Supplies, Driver, Bus
+from .models import Supplies, Driver, Bus , Place
 
 
 class SuppliesSerializer(serializers.HyperlinkedModelSerializer):
@@ -21,3 +21,7 @@ class BusSerializer(serializers.HyperlinkedModelSerializer):
         model = Bus
         fields = ('identification', 'model', 'licencePlate', 'seatNumbers', 'driver', 'type')
 
+class PlaceSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = Place
+        fields = ('town', 'province')

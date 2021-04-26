@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from django.shortcuts import get_object_or_404
-from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer
-from .models import Supplies, Driver, Bus
+from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer , PlaceSerializer
+from .models import Supplies, Driver, Bus , Place
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.core.exceptions import ObjectDoesNotExist
@@ -123,3 +123,52 @@ class DriverViewSet(viewsets.ModelViewSet):
 class BusViewSet(viewsets.ModelViewSet):
     queryset = Bus.objects.all().order_by('identification')
     serializer_class = BusSerializer
+
+
+class PlaceViewSet(viewsets.ModelViewSet):
+    queryset = Place.objects.all().order_by('province', 'town')
+    serializer_class = PlaceSerializer
+
+    def create(self, request):
+        placeData = request.data
+        try:
+            place = Place.objects.get(town=placeData["town"], province=placeData["province"])
+            data = {
+                'code': 'place_exists_error',
+                'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        except Place.DoesNotExist:
+            serializer = PlaceSerializer(data=placeData)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data) #status 200
+
+    def update(self, request, pk=None):
+        placeData = request.data
+        try:
+            place = Place.objects.get(town=placeData["town"], province=placeData["province"])
+            data = {
+                'code': 'place_exists_error',
+                'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        except Place.DoesNotExist:
+            serializer = PlaceSerializer(data=placeData)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data) #status 200
+
+
+
+
+
+
+
+
+
+
+
+
+
+

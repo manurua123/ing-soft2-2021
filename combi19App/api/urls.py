@@ -7,6 +7,7 @@ router = routers.DefaultRouter()
 router.register(r'supplies', views.SuppliesViewSet)
 router.register(r'driver', views.DriverViewSet)
 router.register(r'bus', views.BusViewSet)
+router.register(r'place', views.PlaceViewSet)
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
 urlpatterns = [

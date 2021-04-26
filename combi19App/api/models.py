@@ -37,3 +37,11 @@ class Bus(models.Model):
 
     def __str__(self):
         return self.identification
+
+class Place(models.Model):
+    town = models.CharField(max_length=50, null=False)
+    province =models.CharField(max_length=25, null=False)
+
+    def __str__(self):
+        txt = "{0} - {1}"
+        return txt.format(self.town, self.province)
