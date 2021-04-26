@@ -6,10 +6,13 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import Http404
+from rest_framework.permissions import IsAuthenticated
+
 
 class SuppliesViewSet(viewsets.ModelViewSet):
     queryset = Supplies.objects.all().order_by('description')
     serializer_class = SuppliesSerializer
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
         queryset = Supplies.objects.all().order_by('description')
