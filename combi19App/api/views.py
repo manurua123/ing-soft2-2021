@@ -135,7 +135,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             place = Place.objects.get(town=placeData["town"], province=placeData["province"])
             data = {
                 'code': 'place_exists_error',
-                'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
+                'message': 'El lugar ' + place.__str__ + ' ya ha sido registrado con anterioridad'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         except Place.DoesNotExist:
