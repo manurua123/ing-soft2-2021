@@ -143,7 +143,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data) #status 200
-
+  """
     def update(self, request, pk=None):
         placeData = request.data
         try:
@@ -158,6 +158,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data) #status 200
+            """
 
 
 
