@@ -1,7 +1,7 @@
 # Create your models here.
 from django.db import models
 
-# Soy César Amiconi
+# Soy César Amiconi prueba
 class Supplies(models.Model):
     description = models.CharField(max_length=60, unique=True, error_messages={'unique': "El insumo ya ha sido "
                                                                                          "registrado con "
