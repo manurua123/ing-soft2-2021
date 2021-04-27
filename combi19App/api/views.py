@@ -12,57 +12,56 @@ from rest_framework.permissions import IsAuthenticated
 class SuppliesViewSet(viewsets.ModelViewSet):
     queryset = Supplies.objects.all().order_by('description')
     serializer_class = SuppliesSerializer
-    permission_classes = [IsAuthenticated]
+   #permission_classes = [IsAuthenticated]
 
-    def list(self, request):
-        queryset = Supplies.objects.all().order_by('description')
-        serializer = SuppliesSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def retrieve(self, request, pk=None):
-        queryset = Supplies.objects.all()
-        user = get_object_or_404(queryset, pk=pk)
-        serializer = SuppliesSerializer(user)
-        return Response(serializer.data)
-
-    def perform_destroy(self, instance):
-        print(instance)
-        try:
-            sc = Supplies.objects.get(id=3)
-            print(sc)
-            return Response({'message': 'El chofer que está tratando de eliminar tiene una combi asignada'}, status=400)
-
-        except ObjectDoesNotExist:
-            instance.delete()
-
-    #        instance.delete()
-    #        print(instance.price)
 
     def create(self, request):
-        print("esta creando gato")
-        serializer = SuppliesSerializer(data=request.data)
+        suppliesData = request.data
+        try:
+            supplies = Supplies.objects.get(description=suppliesData["description"])
+            data = {
+                'code': 'supplies_exists_error',
+                'message': 'El insumo ' + supplies.description + ' ya ha sido registrado con anterioridad'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        except Supplies.DoesNotExist:
+            serializer = SuppliesSerializer(data=suppliesData)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)  # status 200
+
+    def update(self, request, pk=None):
+        suppliesData = request.data
+        supplies = self.get_object()
+        serializer = SuppliesSerializer(supplies, data=suppliesData)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+
+        try:
+            suppliesSearch = Supplies.objects.get(description=suppliesData["description"])
+            if str(suppliesSearch.id) != str(pk):
+                data = {
+                    'code': 'supplies_exists_error',
+                    'message': 'El insumo ' + supplies.description + ' ya ha sido registrado con anterioridad'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data)  # status 200
+        except Supplies.DoesNotExist:
+            serializer.save()
+            return Response(serializer.data) #status 200
+
+
+
 
     def destroy(self, request, *args, **kwargs):
-        print("destruyendo")
-        try:
-            instance = self.get_object()
-            print(instance)
-            print(instance.price)
-            print(instance.id)
-            # self.perform_destroy(instance)
-        except Http404:
-            pass
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        supplies = self.get_object()
+        supplies.delete = True
+        serializer = SuppliesSerializer(supplies, data=supplies.__dict__)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
 
-    @action(detail=False, methods=['post'])
-    def save(self, request, pk=None):
-        print(pk)
-        queryset = Supplies.objects.all()
-        serializer = SuppliesSerializer(queryset, many=True)
-        return Response(serializer.data)
+
+
 
 class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.all().order_by('firstName')
@@ -126,6 +125,7 @@ class BusViewSet(viewsets.ModelViewSet):
     queryset = Bus.objects.all().order_by('identification')
     serializer_class = BusSerializer
 
+
 class PlaceViewSet(viewsets.ModelViewSet):
     queryset = Place.objects.all().order_by('province', 'town')
     serializer_class = PlaceSerializer
@@ -144,65 +144,37 @@ class PlaceViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)#status 200
-    """
+
+
     def update(self, request, pk=None):
         placeData = request.data
+        place = self.get_object()
+        serializer = PlaceSerializer(place, data=placeData)
+        serializer.is_valid(raise_exception=True)
+        #Faltaria controlar que el lugar a modificar no este asignado a una ruta (origen/destino)
         try:
-            place = Place.objects.get(town=placeData["town"], province=placeData["province"])
-            data = {
-                'code': 'place_exists_error',
-                'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
-            }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            placeSearch = Place.objects.get(town=placeData["town"], province=placeData["province"])
+            if str(placeSearch.id) != str(pk):
+                data = {
+                    'code': 'place_exists_error',
+                    'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data)  # status 200
         except Place.DoesNotExist:
-            serializer = PlaceSerializer(data=placeData)
-            serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data) #status 200
-    """
 
-class RouteViewSet(viewsets.ModelViewSet):
-    queryset = Route.objects.all().order_by('identification')
-    serializer_class = RouteSerializer
 
-    def create(self, request):
-        routeData = request.data
-        try:
-            route = Route.objects.get(identification=routeData["identification"])
-            data = {
-                'code': 'Route_exists_error',
-                'message': 'La Ruta ' + route.identification + ' ya ha sido registrado con anterioridad'
-            }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-        except Route.DoesNotExist:
-            serializer = RouteSerializer(data=routeData)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data) #status 200
-"""
-    def update(self, request, pk=None):
-        routeData = request.data
-        try:
-            route = Route.objects.get(identification=routeData["identification"])
-            if str(route.identification) == str(pk):
-                serializer = RouteSerializer(route,data=routeData, partial=True)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                return Response(serializer.data)  # status 200
-
-            data = {
-                'code': 'route_update_already_exists',
-                'message': 'Ya se encuentra registrado una ruta con el id: ' + route.identification
-            }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-        except Route.DoesNotExist:
-            data = {
-                'code': 'route_update_not_exists',
-                'message': 'No existe la ruta que esta tratando de modificar'
-            }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-"""
-
+    def destroy(self, request, *args, **kwargs):
+        # Falta agregar la validación de que no exista este lugar en una ruta tanto en origen como en destino
+        place = self.get_object()
+        place.delete = True
+        print(place)
+        serializer = PlaceSerializer(place, data=place.__dict__)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
 
 
 

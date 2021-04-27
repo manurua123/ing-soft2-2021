@@ -6,7 +6,7 @@ from .models import Supplies, Driver, Bus, Place, Route
 class SuppliesSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Supplies
-        fields = ('description', 'price')
+        fields = ('description', 'price', 'delete')
 
 
 class DriverSerializer(serializers.HyperlinkedModelSerializer):
@@ -24,7 +24,7 @@ class BusSerializer(serializers.HyperlinkedModelSerializer):
 class PlaceSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Place
-        fields = ('town', 'province')
+        fields = ('town', 'province', 'delete')
 
 class RouteSerializer(serializers.HyperlinkedModelSerializer):
     bus = serializers.SlugRelatedField(slug_field="identification", queryset=Bus.objects.all())
