@@ -48,13 +48,11 @@ class Place(models.Model):
 
 class Route(models.Model):
 
-    identification = models.IntegerField(max_length=5, unique=True, error_messages={'unique': "La ruta ya ha sido "
-                                                                                         "registrado con "                                                                                         "anterioridad."})
-    origin = models.CharField(max_length=50, null=False)
-    destiny = models.CharField(max_length=50, null=False)
+    origin = models.ForeignKey(Place, on_delete=models.RESTRICT,  related_name='origen')
+    destiny = models.ForeignKey(Place, on_delete=models.RESTRICT,related_name='destino')
     bus = models.ForeignKey(Bus, on_delete=models.RESTRICT)
     duration = models.IntegerField(null=False)
     distance = models.IntegerField(null=False)
 
     def __str__(self):
-        return self.identification
+        return self.duration

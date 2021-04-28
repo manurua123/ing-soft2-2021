@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 class SuppliesViewSet(viewsets.ModelViewSet):
     queryset = Supplies.objects.all().order_by('description')
     serializer_class = SuppliesSerializer
+    #poner esto al final:
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
@@ -90,7 +91,7 @@ class DriverViewSet(viewsets.ModelViewSet):
             driver = Driver.objects.get(email=driverData["email"])
             if str(driver.id) == str(pk):
                 driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
-                serializer = DriverSerializer(driver,data=driverData, partial=True)
+                serializer = DriverSerializer(driver, data=driverData, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
                 return Response(serializer.data)  # status 200
@@ -144,7 +145,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)#status 200
-    """
+
     def update(self, request, pk=None):
         placeData = request.data
         try:
@@ -159,25 +160,37 @@ class PlaceViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data) #status 200
-    """
+
 
 class RouteViewSet(viewsets.ModelViewSet):
-    queryset = Route.objects.all().order_by('identification')
+    queryset = Route.objects.all()
     serializer_class = RouteSerializer
 
     def create(self, request):
         routeData = request.data
+
+        placeOrigin = Place(**routeData["origin"])
+        placeDestiny = Place(**routeData["destiny"])
+        placeBus = Bus(**routeData["bus"])
         try:
-            route = Route.objects.get(identification=routeData["identification"])
+            route = Route.objects.get(origin =placeOrigin.id, destiny = placeDestiny.id, bus = placeBus)
             data = {
                 'code': 'Route_exists_error',
-                'message': 'La Ruta ' + route.identification + ' ya ha sido registrado con anterioridad'
+                'message': 'La Ruta ' + route + ' ya ha sido registrado con anterioridad'
             }
+
+
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         except Route.DoesNotExist:
+
             serializer = RouteSerializer(data=routeData)
+            print("llega aca")
+
             serializer.is_valid(raise_exception=True)
+
+            print("llega aca tambien")
             serializer.save()
+
             return Response(serializer.data) #status 200
 """
     def update(self, request, pk=None):

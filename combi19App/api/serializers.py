@@ -19,15 +19,17 @@ class BusSerializer(serializers.HyperlinkedModelSerializer):
     driver = serializers.SlugRelatedField(slug_field="fullName", queryset=Driver.objects.all())
     class Meta:
         model = Bus
-        fields = ('identification', 'model', 'licencePlate', 'seatNumbers', 'driver', 'type')
+        fields = ('id','identification', 'model', 'licencePlate', 'seatNumbers', 'driver', 'type')
 
 class PlaceSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Place
-        fields = ('town', 'province')
+        fields = ('id','town', 'province')
 
-class RouteSerializer(serializers.HyperlinkedModelSerializer):
-    bus = serializers.SlugRelatedField(slug_field="identification", queryset=Bus.objects.all())
+class RouteSerializer(serializers.ModelSerializer ):
+    bus = BusSerializer()
+    origin = PlaceSerializer()
+    destiny = PlaceSerializer()
     class Meta:
         model = Route
-        fields = ('identification', 'origin', 'destiny', 'bus', 'duration', 'distance',)
+        fields = ( 'origin', 'destiny', 'bus', 'duration', 'distance',)
