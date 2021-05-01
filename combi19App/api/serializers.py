@@ -3,31 +3,49 @@ from rest_framework import serializers
 from .models import Supplies, Driver, Bus, Place, Route
 
 
-class SuppliesSerializer(serializers.HyperlinkedModelSerializer):
+class SuppliesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplies
-        fields = ('description', 'price', 'delete')
+        fields = "__all__"
 
 
-class DriverSerializer(serializers.HyperlinkedModelSerializer):
+class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
-        fields = ('fullName', 'firstName', 'lastName', 'email', 'phone')
+        fields = "__all__"
 
 
-class BusSerializer(serializers.HyperlinkedModelSerializer):
+class BusListSerializer(serializers.ModelSerializer):
     driver = serializers.SlugRelatedField(slug_field="fullName", queryset=Driver.objects.all())
+
     class Meta:
         model = Bus
-        fields = ('identification', 'model', 'licencePlate', 'seatNumbers', 'driver', 'type')
+        fields = "__all__"
 
-class PlaceSerializer(serializers.HyperlinkedModelSerializer):
+class BusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Bus
+        fields = "__all__"
+
+
+
+
+class PlaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Place
-        fields = ('town', 'province', 'delete')
+        fields = '__all__'
 
-class RouteSerializer(serializers.HyperlinkedModelSerializer):
-    bus = serializers.SlugRelatedField(slug_field="identification", queryset=Bus.objects.all())
+
+class RouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
-        fields = ('identification', 'origin', 'destiny', 'bus', 'duration', 'distance',)
+        fields = '__all__'
+
+class RouteListSerializer(serializers.ModelSerializer):
+    bus = serializers.SlugRelatedField(slug_field="identification", queryset=Bus.objects.all())
+    origin = serializers.SlugRelatedField(slug_field="town", queryset=Place.objects.all())
+    destiny = serializers.SlugRelatedField(slug_field="town", queryset=Place.objects.all())
+
+    class Meta:
+        model = Route
+        fields = '__all__'

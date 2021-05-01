@@ -1,8 +1,10 @@
 from rest_framework import viewsets, status
 from django.shortcuts import get_object_or_404
-from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceSerializer, RouteSerializer
+from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceSerializer, RouteSerializer, \
+    RouteListSerializer, BusListSerializer
 from .models import Supplies, Driver, Bus, Place, Route
 from rest_framework.response import Response
+from django.db.models import Q
 from rest_framework.decorators import action
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import Http404
@@ -12,8 +14,8 @@ from rest_framework.permissions import IsAuthenticated
 class SuppliesViewSet(viewsets.ModelViewSet):
     queryset = Supplies.objects.all().order_by('description')
     serializer_class = SuppliesSerializer
-   #permission_classes = [IsAuthenticated]
 
+    # permission_classes = [IsAuthenticated]
 
     def create(self, request):
         suppliesData = request.data
@@ -47,10 +49,7 @@ class SuppliesViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)  # status 200
         except Supplies.DoesNotExist:
             serializer.save()
-            return Response(serializer.data) #status 200
-
-
-
+            return Response(serializer.data)  # status 200
 
     def destroy(self, request, *args, **kwargs):
         supplies = self.get_object()
@@ -61,27 +60,36 @@ class SuppliesViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)  # status 200
 
 
-
-
 class DriverViewSet(viewsets.ModelViewSet):
-    queryset = Driver.objects.all().order_by('firstName')
+    queryset = Driver.objects.all().order_by('fullName')
     serializer_class = DriverSerializer
 
     def create(self, request):
         driverData = request.data
         try:
+            # Controla si ya existe el email del chofer a crear
             driver = Driver.objects.get(email=driverData["email"])
+            """  # Si existe pero borrado lo reactiva
+            if driver.delete:
+                driver.delete = False
+                driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
+                serializer = DriverSerializer(driver, data=driverData, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data)  # status 200 """
+            # Si existe informa que ya fue registrado anteriormente
             data = {
                 'code': 'driver_exists_error',
-                'message': 'El chofer ' + driver.fullName + ' ya ha sido registrado con anterioridad'
+                'message': 'El chofer con el email ' + driver.email + ' ya ha sido registrado con anterioridad'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no existe lo agrega como un nuevo chofer
         except Driver.DoesNotExist:
             driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
             serializer = DriverSerializer(data=driverData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            return Response(serializer.data) #status 200
+            return Response(serializer.data)  # status 200
 
     def update(self, request, pk=None):
         driverData = request.data
@@ -89,14 +97,14 @@ class DriverViewSet(viewsets.ModelViewSet):
             driver = Driver.objects.get(email=driverData["email"])
             if str(driver.id) == str(pk):
                 driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
-                serializer = DriverSerializer(driver,data=driverData, partial=True)
+                serializer = DriverSerializer(driver, data=driverData, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
                 return Response(serializer.data)  # status 200
 
             data = {
                 'code': 'driver_update_already_exists',
-                'message': 'Ya se encuentra registrado otro chofer con el mismo correo electronico: ' + driver.email
+                'message': 'Ya se encuentra registrado otro chofer con el correo electronico: ' + driver.email
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         except Driver.DoesNotExist:
@@ -106,24 +114,92 @@ class DriverViewSet(viewsets.ModelViewSet):
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
 
-
     def destroy(self, request, *args, **kwargs):
         driver = self.get_object()
-        try:
-            bus = Bus.objects.get(driver=driver.id)
+        # Controla que el chofer a eliminar no pertenezca a una combi activa
+        driverInBus = Bus.objects.filter(driver=kwargs.get('pk'), delete=False)
+        # Si pertenece a una Combi activa informa que no puede eliminar
+        if driverInBus:
             data = {
-                'code': 'driver_exists_error',
-                'message': 'No se puede eliminar el chofer ya que el mismo figura como conductor en el vehiculo con patente: ' + bus.licencePlate,
+                'code': 'driver_exists_in_bus_error',
+                'message': 'El chofer ' + driver.__str__() + ' no se puede eliminar porque existe en una Combi activa'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-        except Bus.DoesNotExist:
-            self.perform_destroy(driver)
-            serializer = DriverSerializer(data=driver)
-            return Response(data=serializer, status=status.HTTP_200_OK)
+        # Si no pertenece a una Combi activa realiza el marcado logico de borrado como un update
+        driver.delete = True
+        serializer = DriverSerializer(driver, data=driver.__dict__, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
 
 class BusViewSet(viewsets.ModelViewSet):
     queryset = Bus.objects.all().order_by('identification')
-    serializer_class = BusSerializer
+    serializer_class = BusListSerializer
+
+    def create(self, request):
+        busData = request.data
+        try:
+            # Controla si el bus a crear ya existe
+            bus = Bus.objects.get(Q(identification=busData['identification']) | Q(licencePlate=busData['licencePlate']))
+            # Si existe informa que ya ha sido registrada anteriormente
+            data = {
+                'code': 'bus_exists_error',
+                'message': 'La combi ' + bus.__str__() + ' que esta tratando de crear ya ha sido registrada con anterioridad'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no existe se registra como nueva combi
+        except Bus.DoesNotExist:
+            serializer = BusSerializer(data=busData)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)  # status 200
+
+    def update(self, request, pk=None):
+        busData = request.data
+        bus = self.get_object()
+        serializer = BusSerializer(bus, data=busData, partial=True)
+        serializer.is_valid(raise_exception=True)
+        #Atención!!! Tendria que controlar que datos puede modificar en caso de que pertenezca a una ruta activa
+        try:
+            # Controla si la combi modificada ya existe
+            busSearch = Bus.objects.get(identification=busData['identification'])
+            # Si la encuentra informa que no se puede modificar porque ya existe anteriormente
+            print('La combi encontrada es:')
+            print(busSearch)
+            if str(busSearch.id) != str(pk):
+                data = {
+                    'code': 'bus_exists_error',
+                    'message': 'El bus ' + str(
+                        busSearch) + ' que esta tratando de modificar ya ha sido registrada con anterioridad'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            serializer.save()
+            return Response(serializer.data)  # status 200
+        except Bus.DoesNotExist:
+            serializer.save()
+            return Response(serializer.data)  # status 200
+
+    def destroy(self, request, *args, **kwargs):
+        bus = self.get_object()
+        # Controla que la Combi a eliminar no pertenezca a una ruta activa
+        busInRoute = Route.objects.filter(bus=kwargs.get('pk'), delete=False)
+        # Si pertenece a una ruta activa informa que no puede eliminarla
+        if busInRoute:
+            data = {
+                'code': 'bus_exists_in_route_error',
+                'message': 'La Combi ' + bus.__str__() + ' no se puede eliminar porque existe en una ruta activa'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no pertenece a una ruta activa realiza el marcado logico de borrado como un update
+        bus.delete = True
+        serializer = BusSerializer(bus, data=bus.__dict__, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
+
+
 
 
 class PlaceViewSet(viewsets.ModelViewSet):
@@ -133,57 +209,140 @@ class PlaceViewSet(viewsets.ModelViewSet):
     def create(self, request):
         placeData = request.data
         try:
+            # Busca si el lugar a crear ya existe
             place = Place.objects.get(town=placeData["town"], province=placeData["province"])
+            # Si existe pero esta borrado lo reactiva
+            if place.delete:
+                place.delete = False
+                serializer = PlaceSerializer(place, data=place.__dict__, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data)  # status 200
+            # Si existe pero no esta borrado informa que ya está anteriormente registrado
             data = {
                 'code': 'place_exists_error',
                 'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no existe lo registra como un nuevo lugar
         except Place.DoesNotExist:
             serializer = PlaceSerializer(data=placeData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            return Response(serializer.data)#status 200
-
+            return Response(serializer.data)  # status 200
 
     def update(self, request, pk=None):
         placeData = request.data
         place = self.get_object()
-        serializer = PlaceSerializer(place, data=placeData)
+        serializer = PlaceSerializer(place, data=placeData, partial=True)
         serializer.is_valid(raise_exception=True)
-        #Faltaria controlar que el lugar a modificar no este asignado a una ruta (origen/destino)
+        # Primero controla si el lugar a modificar no se encuentra en alguna ruta activa
+        placeInRoute = Route.objects.filter((Q(origin=pk) | Q(destiny=pk)), delete=False)
+        # Si el lugar esta en una ruta activa informa que no lo puede modificar
+        if placeInRoute:
+            data = {
+                'code': 'place_exists_in_route_error',
+                'message': 'El lugar ' + place.__str__() + ' no se puede modificar porque existe en una ruta activa'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no esta en una ruta activa sigue con otro control
         try:
+            # Luego controla que la modificacion no sea un lugar ya registrado, ojo no filtra los borrados
             placeSearch = Place.objects.get(town=placeData["town"], province=placeData["province"])
+            # Si los datos modificados corresponden a un lugar ya registrado informa
             if str(placeSearch.id) != str(pk):
                 data = {
                     'code': 'place_exists_error',
-                    'message': 'El lugar ' + place.__str__() + ' ya ha sido registrado con anterioridad'
+                    'message': 'El lugar ' + str(placeSearch) + ' ya ha sido registrado con anterioridad'
                 }
                 return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-            return Response(serializer.data)  # status 200
+        # Si la modificacion realizada es correcta la registra
         except Place.DoesNotExist:
             serializer.save()
-            return Response(serializer.data) #status 200
-
+        return Response(serializer.data)  # status 200
 
     def destroy(self, request, *args, **kwargs):
-        # Falta agregar la validación de que no exista este lugar en una ruta tanto en origen como en destino
         place = self.get_object()
+        # Controla que el lugar a eliminar no pertenezca a una ruta activa
+        placeInRoute = Route.objects.filter((Q(origin=kwargs.get('pk')) | Q(destiny=kwargs.get('pk'))), delete=False)
+        # Si pertenece a una ruta activa informa que no puede eliminar
+        if placeInRoute:
+            data = {
+                'code': 'place_exists_in_route_error',
+                'message': 'El lugar ' + place.__str__() + ' no se puede eliminar porque existe en una ruta activa'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no pertenece a una ruta activa realiza el marcado logico de borrado como un update
         place.delete = True
-        print(place)
-        serializer = PlaceSerializer(place, data=place.__dict__)
+        serializer = PlaceSerializer(place, data=place.__dict__, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)  # status 200
 
 
+class RouteViewSet(viewsets.ModelViewSet):
+    queryset = Route.objects.all()
+    serializer_class = RouteListSerializer
 
+    def create(self, request):
+        routeData = request.data
 
+        try:
+            # Controla si la ruta a crear ya exista
+            route = Route.objects.get(origin__id=routeData['origin'], destiny__id=routeData['destiny'],
+                                      bus__id=routeData['bus'])
+            # Si existe y esta borrada se reactiva actualizando sus datos
+            if route.delete:
+                route.delete = False
+                route.distance = routeData['distance']
+                route.duration = routeData['duration']
+                serializer = RouteSerializer(route, data=route.__dict__, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data)  # status 200
+            # Si existe y no esta borrada informa que ya ha sido registrada anteriormente
+            data = {
+                'code': 'route_exists_error',
+                'message': 'La ruta ' + route.__str__() + ' que esta tratando de crear ya ha sido registrada con anterioridad'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        # Si no existe se registra como nueva ruta
+        except Route.DoesNotExist:
+            serializer = RouteSerializer(data=routeData)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)  # status 200
 
+    def update(self, request, pk=None):
+        routeData = request.data
+        route = self.get_object()
+        serializer = RouteSerializer(route, data=routeData, partial=True)
+        serializer.is_valid(raise_exception=True)
+        # Atención!!! Faltaria controlar que no este asignada a un viaje
+        try:
+            # Controla si la ruta modificada ya existe
+            routeSearch = Route.objects.get(origin__id=routeData['origin'], destiny__id=routeData['destiny'],
+                                            bus__id=routeData['bus'])
+            # Si la encuentra informa que no se puede modificar porque ya existe anteriormente
+            if str(routeSearch.id) != str(pk):
+                data = {
+                    'code': 'route_exists_error',
+                    'message': 'La ruta ' + str(
+                        routeSearch) + ' que esta tratando de modificar ya ha sido registrada con anterioridad'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            serializer.save()
+            return Response(serializer.data)  # status 200
+        except Route.DoesNotExist:
+            serializer.save()
+            return Response(serializer.data)  # status 200
 
-
-
-
-
-
-
+    def destroy(self, request, *args, **kwargs):
+        route = self.get_object()
+        # Atencion!!! Falta agregar la validación de que no exista esta ruta en un viaje
+        # Realiza el borrado logico como un update
+        route.delete = True
+        serializer = RouteSerializer(route, data=route.__dict__, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200

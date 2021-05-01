@@ -2,7 +2,6 @@
 from django.db import models
 
 
-
 class Supplies(models.Model):
     description = models.CharField(max_length=60, unique=True, error_messages={'unique': "El insumo ya ha sido "
                                                                                          "registrado con "
@@ -22,6 +21,8 @@ class Driver(models.Model):
                                                                      "anterioridad."})
     phone = models.IntegerField(null=False)
     fullName = models.CharField(max_length=120, null=False, default='')
+    delete = models.BooleanField(default=False)
+
 
     def __str__(self):
         return self.email
@@ -35,7 +36,9 @@ class Bus(models.Model):
     licencePlate = models.CharField(max_length=7, null=False)
     seatNumbers = models.IntegerField(null=False)
     driver = models.ForeignKey(Driver, on_delete=models.RESTRICT)
-    type = models.CharField(max_length=15, null=False)
+    typeChoice = [('C','Cómoda'), ('SC', 'Super-Cómoda')]
+    type = models.CharField(max_length=2, choices=typeChoice, null=False)
+    delete = models.BooleanField(default=False)
 
     def __str__(self):
         return self.identification
@@ -52,13 +55,13 @@ class Place(models.Model):
 
 
 class Route(models.Model):
-    identification = models.IntegerField(max_length=5, unique=True, error_messages={'unique': "La ruta ya ha sido "
-                                                                                              "registrado con "                                                                                         "anterioridad."})
-    origin = models.CharField(max_length=50, null=False)
-    destiny = models.CharField(max_length=50, null=False)
+    origin = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='origen')
+    destiny = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='destino')
     bus = models.ForeignKey(Bus, on_delete=models.RESTRICT)
     duration = models.IntegerField(null=False)
     distance = models.IntegerField(null=False)
+    delete = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.identification
+        txt = "{0} / {1} con Combi {2}"
+        return txt.format(self.origin.__str__(), self.destiny.__str__(), self.bus.__str__())
