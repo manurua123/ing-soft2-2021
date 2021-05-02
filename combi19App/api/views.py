@@ -5,10 +5,17 @@ from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, Pl
 from .models import Supplies, Driver, Bus, Place, Route
 from rest_framework.response import Response
 from django.db.models import Q
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import Http404
 from rest_framework.permissions import IsAuthenticated
+
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 2
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
 
 
 class SuppliesViewSet(viewsets.ModelViewSet):
@@ -160,7 +167,7 @@ class BusViewSet(viewsets.ModelViewSet):
         bus = self.get_object()
         serializer = BusSerializer(bus, data=busData, partial=True)
         serializer.is_valid(raise_exception=True)
-        #Atención!!! Tendria que controlar que datos puede modificar en caso de que pertenezca a una ruta activa
+        # Atención!!! Tendria que controlar que datos puede modificar en caso de que pertenezca a una ruta activa
         try:
             # Controla si la combi modificada ya existe
             busSearch = Bus.objects.get(identification=busData['identification'])
@@ -199,12 +206,10 @@ class BusViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)  # status 200
 
 
-
-
-
 class PlaceViewSet(viewsets.ModelViewSet):
-    queryset = Place.objects.all().order_by('province', 'town')
+    queryset = Place.objects.filter(delete=False).order_by('province', 'town')
     serializer_class = PlaceSerializer
+    pagination_class = StandardResultsSetPagination
 
     def create(self, request):
         placeData = request.data
