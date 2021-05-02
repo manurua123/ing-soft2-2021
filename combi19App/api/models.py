@@ -56,7 +56,7 @@ class Place(models.Model):
 
 class Route(models.Model):
     origin = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='origen')
-    destiny = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='destino')
+    destination = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='destino')
     bus = models.ForeignKey(Bus, on_delete=models.RESTRICT)
     duration = models.IntegerField(null=False)
     distance = models.IntegerField(null=False)
@@ -64,4 +64,4 @@ class Route(models.Model):
 
     def __str__(self):
         txt = "{0} / {1} con Combi {2}"
-        return txt.format(self.origin.__str__(), self.destiny.__str__(), self.bus.__str__())
+        return txt.format(self.origin.__str__(), self.destination.__str__(), self.bus.__str__())

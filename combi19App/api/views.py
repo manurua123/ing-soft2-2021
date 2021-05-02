@@ -5,17 +5,6 @@ from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, Pl
 from .models import Supplies, Driver, Bus, Place, Route
 from rest_framework.response import Response
 from django.db.models import Q
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.decorators import action
-from django.core.exceptions import ObjectDoesNotExist
-from django.http import Http404
-from rest_framework.permissions import IsAuthenticated
-
-
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 2
-    page_size_query_param = 'page_size'
-    max_page_size = 1000
 
 
 class SuppliesViewSet(viewsets.ModelViewSet):
@@ -68,7 +57,7 @@ class SuppliesViewSet(viewsets.ModelViewSet):
 
 
 class DriverViewSet(viewsets.ModelViewSet):
-    queryset = Driver.objects.all().order_by('fullName')
+    queryset = Driver.objects.filter(delete=False).order_by('fullName')
     serializer_class = DriverSerializer
 
     def create(self, request):
@@ -141,14 +130,14 @@ class DriverViewSet(viewsets.ModelViewSet):
 
 
 class BusViewSet(viewsets.ModelViewSet):
-    queryset = Bus.objects.all().order_by('identification')
+    queryset = Bus.objects.filter(delete=False).order_by('identification')
     serializer_class = BusListSerializer
 
     def create(self, request):
         busData = request.data
         try:
             # Controla si el bus a crear ya existe
-            bus = Bus.objects.get(Q(identification=busData['identification']) | Q(licencePlate=busData['licencePlate']))
+            bus = Bus.objects.get(Q(identification=busData['identification']))
             # Si existe informa que ya ha sido registrada anteriormente
             data = {
                 'code': 'bus_exists_error',
@@ -165,25 +154,26 @@ class BusViewSet(viewsets.ModelViewSet):
     def update(self, request, pk=None):
         busData = request.data
         bus = self.get_object()
-        serializer = BusSerializer(bus, data=busData, partial=True)
-        serializer.is_valid(raise_exception=True)
+
         # Atención!!! Tendria que controlar que datos puede modificar en caso de que pertenezca a una ruta activa
         try:
             # Controla si la combi modificada ya existe
             busSearch = Bus.objects.get(identification=busData['identification'])
             # Si la encuentra informa que no se puede modificar porque ya existe anteriormente
-            print('La combi encontrada es:')
-            print(busSearch)
             if str(busSearch.id) != str(pk):
                 data = {
                     'code': 'bus_exists_error',
-                    'message': 'El bus ' + str(
+                    'message': 'La Combi ' + str(
                         busSearch) + ' que esta tratando de modificar ya ha sido registrada con anterioridad'
                 }
                 return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            serializer = BusSerializer(bus, data=busData, partial=True)
+            serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)  # status 200
         except Bus.DoesNotExist:
+            serializer = BusSerializer(bus, data=busData, partial=True)
+            serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)  # status 200
 
@@ -209,7 +199,6 @@ class BusViewSet(viewsets.ModelViewSet):
 class PlaceViewSet(viewsets.ModelViewSet):
     queryset = Place.objects.filter(delete=False).order_by('province', 'town')
     serializer_class = PlaceSerializer
-    pagination_class = StandardResultsSetPagination
 
     def create(self, request):
         placeData = request.data
@@ -286,7 +275,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
 
 
 class RouteViewSet(viewsets.ModelViewSet):
-    queryset = Route.objects.all()
+    queryset = Route.objects.filter(delete=False).order_by('origin__province', 'origin__town')
     serializer_class = RouteListSerializer
 
     def create(self, request):
@@ -304,6 +293,7 @@ class RouteViewSet(viewsets.ModelViewSet):
                 serializer = RouteSerializer(route, data=route.__dict__, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
+                print(serializer.data)
                 return Response(serializer.data)  # status 200
             # Si existe y no esta borrada informa que ya ha sido registrada anteriormente
             data = {
