@@ -1,7 +1,9 @@
 from rest_framework import viewsets, status
-from django.shortcuts import get_object_or_404
-from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceSerializer, RouteSerializer, \
-    RouteListSerializer, BusListSerializer
+from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
+
+from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
+    RouteListSerializer, BusListSerializer, PlaceSerializer
 from .models import Supplies, Driver, Bus, Place, Route
 from rest_framework.response import Response
 from django.db.models import Q
@@ -133,6 +135,13 @@ class BusViewSet(viewsets.ModelViewSet):
     queryset = Bus.objects.filter(delete=False).order_by('identification')
     serializer_class = BusListSerializer
 
+
+    @action(detail=False)
+    def all(self, request):
+        bus = Bus.objects.all()
+        serializer = BusSerializer(bus, many=True)
+        return Response(serializer.data)  # status 200
+
     def create(self, request):
         busData = request.data
         try:
@@ -198,7 +207,15 @@ class BusViewSet(viewsets.ModelViewSet):
 
 class PlaceViewSet(viewsets.ModelViewSet):
     queryset = Place.objects.filter(delete=False).order_by('province', 'town')
-    serializer_class = PlaceSerializer
+    serializer_class = PlaceListSerializer
+    pagination_class = PageNumberPagination
+
+    @action(detail=False)
+    def all(self, request):
+        place = Place.objects.all()
+        serializer = PlaceSerializer(place, many=True)
+        return Response(serializer.data)  # status 200
+
 
     def create(self, request):
         placeData = request.data
@@ -208,7 +225,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             # Si existe pero esta borrado lo reactiva
             if place.delete:
                 place.delete = False
-                serializer = PlaceSerializer(place, data=place.__dict__, partial=True)
+                serializer = PlaceListSerializer(place, data=place.__dict__, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
                 return Response(serializer.data)  # status 200
@@ -220,7 +237,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no existe lo registra como un nuevo lugar
         except Place.DoesNotExist:
-            serializer = PlaceSerializer(data=placeData)
+            serializer = PlaceListSerializer(data=placeData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)  # status 200
@@ -228,7 +245,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
     def update(self, request, pk=None):
         placeData = request.data
         place = self.get_object()
-        serializer = PlaceSerializer(place, data=placeData, partial=True)
+        serializer = PlaceListSerializer(place, data=placeData, partial=True)
         serializer.is_valid(raise_exception=True)
         # Primero controla si el lugar a modificar no se encuentra en alguna ruta activa
         placeInRoute = Route.objects.filter((Q(origin=pk) | Q(destiny=pk)), delete=False)
@@ -268,7 +285,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no pertenece a una ruta activa realiza el marcado logico de borrado como un update
         place.delete = True
-        serializer = PlaceSerializer(place, data=place.__dict__, partial=True)
+        serializer = PlaceListSerializer(place, data=place.__dict__, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)  # status 200
@@ -280,10 +297,10 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         routeData = request.data
-
+        print("create")
         try:
             # Controla si la ruta a crear ya exista
-            route = Route.objects.get(origin__id=routeData['origin'], destiny__id=routeData['destiny'],
+            route = Route.objects.get(origin__id=routeData['origin'], destination__id=routeData['destination'],
                                       bus__id=routeData['bus'])
             # Si existe y esta borrada se reactiva actualizando sus datos
             if route.delete:
@@ -303,6 +320,7 @@ class RouteViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no existe se registra como nueva ruta
         except Route.DoesNotExist:
+            print("No encuentra ruta")
             serializer = RouteSerializer(data=routeData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -316,7 +334,7 @@ class RouteViewSet(viewsets.ModelViewSet):
         # Atención!!! Faltaria controlar que no este asignada a un viaje
         try:
             # Controla si la ruta modificada ya existe
-            routeSearch = Route.objects.get(origin__id=routeData['origin'], destiny__id=routeData['destiny'],
+            routeSearch = Route.objects.get(origin__id=routeData['origin'], destination__id=routeData['destination'],
                                             bus__id=routeData['bus'])
             # Si la encuentra informa que no se puede modificar porque ya existe anteriormente
             if str(routeSearch.id) != str(pk):

@@ -27,13 +27,25 @@ class BusListSerializer(serializers.ModelSerializer):
 class BusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bus
-        fields = "__all__"
+        fields = ['id','identification']
 
 
-class PlaceSerializer(serializers.ModelSerializer):
+class PlaceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Place
         fields = '__all__'
+
+
+class PlaceSerializer(serializers.ModelSerializer):
+    place = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_place(obj):
+        return '{} - {}'.format(obj.town, obj.province)
+
+    class Meta:
+        model = Place
+        fields = ['id', 'place']
 
 
 class RouteSerializer(serializers.ModelSerializer):
