@@ -27,7 +27,7 @@ class Driver(models.Model):
     delete = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.email
+        return self.fullName
 
 
 class Bus(models.Model):
@@ -71,31 +71,15 @@ class Route(models.Model):
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    idCards = models.IntegerField
-    birth_date = models.DateField
-    phone = models.CharField(max_length=20)
-    card_holder = models.CharField(max_length=50, null=True)
-    card_number = models.IntegerField
-    month_exp = models.IntegerField
-    year_exp = models.IntegerField
-    security_code = models.CharField
-    delete = models.BooleanField(default=False)
-
-    def __str__(self):
-        return phone
-
-
-class Profiles(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    idCards = models.IntegerField(null=False)
-    birth_date = models.DateField(null=False)
+    idCards = models.IntegerField(null=True)
+    birth_date = models.DateField(null=True)
     phone = models.CharField(max_length=20)
     card_holder = models.CharField(max_length=50, null=True)
     card_number = models.IntegerField(null=True)
     month_exp = models.IntegerField(null=True)
     year_exp = models.IntegerField(null=True)
-    security_code = models.CharField(null=True)
+    security_code = models.CharField(max_length=3, null=True)
     delete = models.BooleanField(default=False)
 
     def __str__(self):
-        return phone
+        return self.phone

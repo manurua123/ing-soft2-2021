@@ -28,7 +28,7 @@ class BusListSerializer(serializers.ModelSerializer):
 class BusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bus
-        fields = ['id', 'identification']
+        fields = '__all__'
 
 
 class PlaceListSerializer(serializers.ModelSerializer):

@@ -79,8 +79,10 @@ class DriverViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no existe lo agrega como un nuevo chofer
         except Driver.DoesNotExist:
+            rol = Group.objects.get(name='DRIVER')
             userNew = User.objects.create_user(username=driverData["email"], email=driverData["email"],
-                                               password=driverData["email"])
+                                               password=driverData["email"], )
+            rol.user_set.add(userNew)
             profile = Profile.objects.create(user=userNew,
                                              birth_date=driverData["birth_date"], phone=driverData["phone"])
 
@@ -146,15 +148,32 @@ class BusViewSet(viewsets.ModelViewSet):
     def create(self, request):
         busData = request.data
         try:
-            # Controla si el bus a crear ya existe
-            bus = Bus.objects.get(Q(identification=busData['identification']))
-            # Si existe informa que ya ha sido registrada anteriormente
+            # Controla si el vehículo a crear ya existe
+            bus = Bus.objects.get(identification=busData['identification'])
+            # Busca que el chofer no este ya registrado en un vehículo
+            driverInBus = Bus.objects.filter(driver=busData['driver'], delete=False)
+            if driverInBus:
+                data = {
+                    'code': 'driver_exists_in_bus_error',
+                    'message': 'El chofer ' + driverInBus[0].driver.__str__() + ' ya está registrado en otro vehículo'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+
+            # Si existe el vehiculo pero esta borrado lo reactiva
+            if bus.delete and (bus.licencePlate == busData['licencePlate']):
+                bus.delete = False
+                serializer = BusSerializer(bus, data=busData, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data)  # status 200
+
+            # Si existe pero no esta borrado informa que ya ha sido registrado anteriormente
             data = {
                 'code': 'bus_exists_error',
-                'message': 'La combi ' + bus.__str__() + ' que esta tratando de crear ya ha sido registrada con anterioridad'
+                'message': 'El vehículo ' + bus.__str__() + ' que esta tratando de crear ya ha sido registrado con anterioridad'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-        # Si no existe se registra como nueva combi
+        # Si no existe se registra como nuevo vehículo
         except Bus.DoesNotExist:
             serializer = BusSerializer(data=busData)
             serializer.is_valid(raise_exception=True)
@@ -165,7 +184,6 @@ class BusViewSet(viewsets.ModelViewSet):
         busData = request.data
         bus = self.get_object()
 
-        # Atención!!! Tendria que controlar que datos puede modificar en caso de que pertenezca a una ruta activa
         try:
             # Controla si la combi modificada ya existe
             busSearch = Bus.objects.get(identification=busData['identification'])
@@ -173,10 +191,19 @@ class BusViewSet(viewsets.ModelViewSet):
             if str(busSearch.id) != str(pk):
                 data = {
                     'code': 'bus_exists_error',
-                    'message': 'La Combi ' + str(
-                        busSearch) + ' que esta tratando de modificar ya ha sido registrada con anterioridad'
+                    'message': 'El vehículo ' + str(
+                        busSearch) + ' que esta tratando de modificar ya ha sido registrado con anterioridad'
                 }
                 return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            driverInBus = Bus.objects.filter(driver=busData['driver'], delete=False)
+
+            if driverInBus and str(bus.driver) != str(driverInBus[0].driver):
+                data = {
+                    'code': 'driver_exists_in_bus_error',
+                    'message': 'El chofer ' + driverInBus[0].driver.__str__() + ' ya está registrado en otro vehículo'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+
             serializer = BusSerializer(bus, data=busData, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -195,7 +222,7 @@ class BusViewSet(viewsets.ModelViewSet):
         if busInRoute:
             data = {
                 'code': 'bus_exists_in_route_error',
-                'message': 'La Combi ' + bus.__str__() + ' no se puede eliminar porque existe en una ruta activa'
+                'message': 'El vehículo ' + bus.__str__() + ' no se puede eliminar porque existe en una ruta activa'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no pertenece a una ruta activa realiza el marcado logico de borrado como un update
@@ -275,7 +302,8 @@ class PlaceViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         place = self.get_object()
         # Controla que el lugar a eliminar no pertenezca a una ruta activa
-        placeInRoute = Route.objects.filter((Q(origin=kwargs.get('pk')) | Q(destination=kwargs.get('pk'))), delete=False)
+        placeInRoute = Route.objects.filter((Q(origin=kwargs.get('pk')) | Q(destination=kwargs.get('pk'))),
+                                            delete=False)
         # Si pertenece a una ruta activa informa que no puede eliminar
         if placeInRoute:
             data = {
@@ -297,7 +325,6 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         routeData = request.data
-        print("create")
         try:
             # Controla si la ruta a crear ya exista
             route = Route.objects.get(origin__id=routeData['origin'], destination__id=routeData['destination'],
@@ -310,7 +337,6 @@ class RouteViewSet(viewsets.ModelViewSet):
                 serializer = RouteSerializer(route, data=route.__dict__, partial=True)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
-                print(serializer.data)
                 return Response(serializer.data)  # status 200
             # Si existe y no esta borrada informa que ya ha sido registrada anteriormente
             data = {
@@ -320,7 +346,6 @@ class RouteViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no existe se registra como nueva ruta
         except Route.DoesNotExist:
-            print("No encuentra ruta")
             serializer = RouteSerializer(data=routeData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -389,7 +414,7 @@ class ProfileViewSet(viewsets.ModelViewSet):
             profile.save()
             serializer = ProfileSerializer(data=profile.__dict__)
             serializer.is_valid(raise_exception=False)
-            #serializer.save()
+            # serializer.save()
             return Response(serializer.data)  # status 200
 
 
@@ -398,8 +423,6 @@ class RolViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     def get_roles_by_user(self, request):
-        print(request.GET['username'])
-        print(self)
         user = User.objects.get(username=request.GET['username'])
         serializer = RolSerializer(user.groups, many=True)
 
