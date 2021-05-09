@@ -1,18 +1,19 @@
 from rest_framework import serializers
+from django.contrib.auth.models import User, Group
 
-from .models import Supplies, Driver, Bus, Place, Route
+from .models import Supplies, Driver, Bus, Place, Route, Profile
 
 
 class SuppliesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplies
-        fields = "__all__"
+        fields = '__all__'
 
 
 class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
-        fields = "__all__"
+        fields = '__all__'
 
 
 class BusListSerializer(serializers.ModelSerializer):
@@ -21,13 +22,13 @@ class BusListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Bus
-        fields = "__all__"
+        fields = '__all__'
 
 
 class BusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bus
-        fields = ['id','identification']
+        fields = ['id', 'identification']
 
 
 class PlaceListSerializer(serializers.ModelSerializer):
@@ -73,3 +74,23 @@ class RouteListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = '__all__'
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'password']
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer()
+
+    class Meta:
+        model = Profile
+        fields = '__all__'
+
+
+class RolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ['name']

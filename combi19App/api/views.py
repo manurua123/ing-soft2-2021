@@ -1,10 +1,13 @@
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from django.contrib.auth.models import User, Group
 
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
-    RouteListSerializer, BusListSerializer, PlaceSerializer
-from .models import Supplies, Driver, Bus, Place, Route
+    RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer
+from .models import Supplies, Driver, Bus, Place, Route, Profile
 from rest_framework.response import Response
 from django.db.models import Q
 
@@ -64,17 +67,10 @@ class DriverViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         driverData = request.data
+        print(driverData)
         try:
             # Controla si ya existe el email del chofer a crear
             driver = Driver.objects.get(email=driverData["email"])
-            """  # Si existe pero borrado lo reactiva
-            if driver.delete:
-                driver.delete = False
-                driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
-                serializer = DriverSerializer(driver, data=driverData, partial=True)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                return Response(serializer.data)  # status 200 """
             # Si existe informa que ya fue registrado anteriormente
             data = {
                 'code': 'driver_exists_error',
@@ -83,6 +79,12 @@ class DriverViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no existe lo agrega como un nuevo chofer
         except Driver.DoesNotExist:
+            userNew = User.objects.create_user(username=driverData["email"], email=driverData["email"],
+                                               password=driverData["email"])
+            profile = Profile.objects.create(user=userNew,
+                                             birth_date=driverData["birth_date"], phone=driverData["phone"])
+
+            profile.save()
             driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
             serializer = DriverSerializer(data=driverData)
             serializer.is_valid(raise_exception=True)
@@ -134,7 +136,6 @@ class DriverViewSet(viewsets.ModelViewSet):
 class BusViewSet(viewsets.ModelViewSet):
     queryset = Bus.objects.filter(delete=False).order_by('identification')
     serializer_class = BusListSerializer
-
 
     @action(detail=False)
     def all(self, request):
@@ -216,7 +217,6 @@ class PlaceViewSet(viewsets.ModelViewSet):
         serializer = PlaceSerializer(place, many=True)
         return Response(serializer.data)  # status 200
 
-
     def create(self, request):
         placeData = request.data
         try:
@@ -248,7 +248,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
         serializer = PlaceListSerializer(place, data=placeData, partial=True)
         serializer.is_valid(raise_exception=True)
         # Primero controla si el lugar a modificar no se encuentra en alguna ruta activa
-        placeInRoute = Route.objects.filter((Q(origin=pk) | Q(destiny=pk)), delete=False)
+        placeInRoute = Route.objects.filter((Q(origin=pk) | Q(destination=pk)), delete=False)
         # Si el lugar esta en una ruta activa informa que no lo puede modificar
         if placeInRoute:
             data = {
@@ -275,7 +275,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         place = self.get_object()
         # Controla que el lugar a eliminar no pertenezca a una ruta activa
-        placeInRoute = Route.objects.filter((Q(origin=kwargs.get('pk')) | Q(destiny=kwargs.get('pk'))), delete=False)
+        placeInRoute = Route.objects.filter((Q(origin=kwargs.get('pk')) | Q(destination=kwargs.get('pk'))), delete=False)
         # Si pertenece a una ruta activa informa que no puede eliminar
         if placeInRoute:
             data = {
@@ -358,4 +358,49 @@ class RouteViewSet(viewsets.ModelViewSet):
         serializer = RouteSerializer(route, data=route.__dict__, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        return Response(serializer.data)  # status 200
+
+
+class ProfileViewSet(viewsets.ModelViewSet):
+    queryset = Profile.objects.filter(delete=False)
+    serializer_class = ProfileSerializer
+
+    @action(detail=False)
+    def all(self, request):
+        user = User.objects.create_user(username='Cesar2', email='cesar.amiconi@hotmail.com', password='44hhd')
+        profile = Profile.objects.create(user=user, idCards=249531655, birth_date='2021-04-08', phone='734784347')
+        profile.save()
+        return Response('ok')  # status 200
+
+    def create(self, request):
+        profileData = request.data
+        try:
+            user = User.objects.get(username=profileData["username"])
+            data = {
+                'code': 'profile_exists_error',
+                'message': 'El usuario ' + user.username + ' ya ha sido registrado con anterioridad'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            userNew = User.objects.create_user(username=profileData["username"], email=profileData["email"],
+                                               password=profileData["password"])
+            profile = Profile.objects.create(user=userNew, idCards=profileData["idCards"],
+                                             birth_date=profileData["birth_date"], phone=profileData["phone"])
+            profile.save()
+            serializer = ProfileSerializer(data=profile.__dict__)
+            serializer.is_valid(raise_exception=False)
+            #serializer.save()
+            return Response(serializer.data)  # status 200
+
+
+class RolViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all()
+
+    @action(detail=False)
+    def get_roles_by_user(self, request):
+        print(request.GET['username'])
+        print(self)
+        user = User.objects.get(username=request.GET['username'])
+        serializer = RolSerializer(user.groups, many=True)
+
         return Response(serializer.data)  # status 200
