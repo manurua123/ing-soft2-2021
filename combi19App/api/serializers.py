@@ -94,3 +94,5 @@ class RolSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = ['name']
+
+

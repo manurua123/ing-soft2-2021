@@ -23,6 +23,8 @@ class Driver(models.Model):
                                                                      "registrado con "
                                                                      "anterioridad."})
     phone = models.IntegerField(null=False)
+    idCards = models.IntegerField(null=True)
+    birth_date = models.DateField(null=True)
     fullName = models.CharField(max_length=120, null=False, default='')
     delete = models.BooleanField(default=False)
 

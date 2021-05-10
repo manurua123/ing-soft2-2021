@@ -86,7 +86,8 @@ class DriverViewSet(viewsets.ModelViewSet):
         except Driver.DoesNotExist:
             rol = Group.objects.get(name='DRIVER')
             userNew = User.objects.create_user(username=driverData["email"], email=driverData["email"],
-                                               password=driverData["email"], )
+                                               password=driverData["email"], last_name=driverData["lastName"],
+                                               first_name=driverData["firstName"])
             rol.user_set.add(userNew)
             profile = Profile.objects.create(user=userNew,
                                              birth_date=driverData["birth_date"], phone=driverData["phone"],
@@ -104,6 +105,9 @@ class DriverViewSet(viewsets.ModelViewSet):
             driver = Driver.objects.get(email=driverData["email"])
             if str(driver.id) == str(pk):
                 user = User.objects.get(email=driver.email)
+                user.last_name = driverData["lastName"]
+                user.first_name = driverData["firstName"]
+                user.save()
                 profile = Profile.objects.get(user_id=user.id)
                 profile.birth_date = driverData["birth_date"]
                 profile.idCards = driverData["idCards"]
@@ -297,7 +301,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
         if placeInRoute:
             data = {
                 'code': 'place_exists_in_route_error',
-                'message': 'El lugar ' + place.__str__() + ' no se puede modificar porque existe en una ruta activa'
+                'message': 'El lugar ' + place.__str__() + ' no se puede modificar porque pertenece a una ruta activa'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no esta en una ruta activa sigue con otro control
@@ -325,7 +329,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
         if placeInRoute:
             data = {
                 'code': 'place_exists_in_route_error',
-                'message': 'El lugar ' + place.__str__() + ' no se puede eliminar porque existe en una ruta activa'
+                'message': 'El lugar ' + place.__str__() + ' no se puede eliminar porque pertenece a una ruta activa'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no pertenece a una ruta activa realiza el marcado logico de borrado como un update
