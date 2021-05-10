@@ -65,9 +65,14 @@ class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.filter(delete=False).order_by('fullName')
     serializer_class = DriverSerializer
 
+    @action(detail=False)
+    def all(self, request):
+        driver = Driver.objects.all()
+        serializer = DriverSerializer(driver, many=True)
+        return Response(serializer.data)  # status 200
+
     def create(self, request):
         driverData = request.data
-        print(driverData)
         try:
             # Controla si ya existe el email del chofer a crear
             driver = Driver.objects.get(email=driverData["email"])
@@ -407,10 +412,13 @@ class ProfileViewSet(viewsets.ModelViewSet):
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
+            rol = Group.objects.get(name='CLIENT')
             userNew = User.objects.create_user(username=profileData["username"], email=profileData["email"],
                                                password=profileData["password"])
+            rol.user_set.add(userNew)
             profile = Profile.objects.create(user=userNew, idCards=profileData["idCards"],
                                              birth_date=profileData["birth_date"], phone=profileData["phone"])
+
             profile.save()
             serializer = ProfileSerializer(data=profile.__dict__)
             serializer.is_valid(raise_exception=False)
