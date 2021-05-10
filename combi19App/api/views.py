@@ -89,8 +89,8 @@ class DriverViewSet(viewsets.ModelViewSet):
                                                password=driverData["email"], )
             rol.user_set.add(userNew)
             profile = Profile.objects.create(user=userNew,
-                                             birth_date=driverData["birth_date"], phone=driverData["phone"])
-
+                                             birth_date=driverData["birth_date"], phone=driverData["phone"],
+                                             idCards=driverData["idCards"])
             profile.save()
             driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
             serializer = DriverSerializer(data=driverData)
@@ -103,6 +103,12 @@ class DriverViewSet(viewsets.ModelViewSet):
         try:
             driver = Driver.objects.get(email=driverData["email"])
             if str(driver.id) == str(pk):
+                user = User.objects.get(email=driver.email)
+                profile = Profile.objects.get(user_id=user.id)
+                profile.birth_date = driverData["birth_date"]
+                profile.idCards = driverData["idCards"]
+                profile.phone = driverData["phone"]
+                profile.save()
                 driverData["fullName"] = driverData["lastName"] + ', ' + driverData["firstName"]
                 serializer = DriverSerializer(driver, data=driverData, partial=True)
                 serializer.is_valid(raise_exception=True)
@@ -111,7 +117,7 @@ class DriverViewSet(viewsets.ModelViewSet):
 
             data = {
                 'code': 'driver_update_already_exists',
-                'message': 'Ya se encuentra registrado otro chofer con el correo electronico: ' + driver.email
+                'message': 'El correo electrónico: ' + driver.email + ' ya se encuentra registrado.'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         except Driver.DoesNotExist:
@@ -129,10 +135,16 @@ class DriverViewSet(viewsets.ModelViewSet):
         if driverInBus:
             data = {
                 'code': 'driver_exists_in_bus_error',
-                'message': 'El chofer ' + driver.__str__() + ' no se puede eliminar porque existe en una Combi activa'
+                'message': 'El chofer ' + driver.__str__() + ' no se puede eliminar porque existe en un vehículo Activo'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Si no pertenece a una Combi activa realiza el marcado logico de borrado como un update
+        user = User.objects.get(email=driver.email)
+        user.is_active = False
+        user.save()
+        profile = Profile.objects.get(user_id=user.id)
+        profile.delete = True
+        profile.save()
         driver.delete = True
         serializer = DriverSerializer(driver, data=driver.__dict__, partial=True)
         serializer.is_valid(raise_exception=True)
