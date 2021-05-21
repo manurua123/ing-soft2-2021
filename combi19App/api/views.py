@@ -17,11 +17,22 @@ class SuppliesViewSet(viewsets.ModelViewSet):
     serializer_class = SuppliesSerializer
 
     # permission_classes = [IsAuthenticated]
+    @action(detail=False)
+    def all(self, request):
+        supplies = Supplies.objects.filter(delete=False).order_by('description')
+        serializer = SuppliesSerializer(supplies, many=True)
+        return Response(serializer.data)  # status 200
 
     def create(self, request):
         suppliesData = request.data
         try:
             supplies = Supplies.objects.get(description=suppliesData["description"])
+            if supplies.delete:
+                supplies.delete = False
+                serializer = SuppliesSerializer(supplies, data=suppliesData, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data)  # status 200
             data = {
                 'code': 'supplies_exists_error',
                 'message': 'El insumo ' + supplies.description + ' ya ha sido registrado con anterioridad'
@@ -36,26 +47,28 @@ class SuppliesViewSet(viewsets.ModelViewSet):
     def update(self, request, pk=None):
         suppliesData = request.data
         supplies = self.get_object()
-        serializer = SuppliesSerializer(supplies, data=suppliesData)
-        serializer.is_valid(raise_exception=True)
-
         try:
             suppliesSearch = Supplies.objects.get(description=suppliesData["description"])
             if str(suppliesSearch.id) != str(pk):
                 data = {
                     'code': 'supplies_exists_error',
-                    'message': 'El insumo ' + supplies.description + ' ya ha sido registrado con anterioridad'
+                    'message': 'El insumo ' + suppliesSearch.description + ' ya ha sido registrado con anterioridad'
                 }
                 return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            serializer = SuppliesSerializer(supplies, data=suppliesData, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
             return Response(serializer.data)  # status 200
         except Supplies.DoesNotExist:
+            serializer = SuppliesSerializer(supplies, data=suppliesData, partial=True)
+            serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)  # status 200
 
     def destroy(self, request, *args, **kwargs):
         supplies = self.get_object()
         supplies.delete = True
-        serializer = SuppliesSerializer(supplies, data=supplies.__dict__)
+        serializer = SuppliesSerializer(supplies, data=supplies.__dict__, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)  # status 200
@@ -67,7 +80,7 @@ class DriverViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     def all(self, request):
-        driver = Driver.objects.all()
+        driver = Driver.objects.filter(delete=False).order_by('fullName')
         serializer = DriverSerializer(driver, many=True)
         return Response(serializer.data)  # status 200
 
@@ -162,7 +175,7 @@ class BusViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     def all(self, request):
-        bus = Bus.objects.all()
+        bus = Bus.objects.filter(delete=False).order_by('identification')
         serializer = BusSerializer(bus, many=True)
         return Response(serializer.data)  # status 200
 
@@ -170,15 +183,8 @@ class BusViewSet(viewsets.ModelViewSet):
         busData = request.data
         try:
             # Controla si el vehículo a crear ya existe
+
             bus = Bus.objects.get(identification=busData['identification'])
-            # Busca que el chofer no este ya registrado en un vehículo
-            driverInBus = Bus.objects.filter(driver=busData['driver'], delete=False)
-            if driverInBus:
-                data = {
-                    'code': 'driver_exists_in_bus_error',
-                    'message': 'El chofer ' + driverInBus[0].driver.__str__() + ' ya está registrado en otro vehículo'
-                }
-                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
 
             # Si existe el vehiculo pero esta borrado lo reactiva
             if bus.delete and (bus.licencePlate == busData['licencePlate']):
@@ -191,11 +197,19 @@ class BusViewSet(viewsets.ModelViewSet):
             # Si existe pero no esta borrado informa que ya ha sido registrado anteriormente
             data = {
                 'code': 'bus_exists_error',
-                'message': 'El vehículo ' + bus.__str__() + ' que esta tratando de crear ya ha sido registrado con anterioridad'
+                'message': 'La identificacion ' + bus.__str__() + ' que esta tratando de crear ya ha sido registrada con anterioridad'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-        # Si no existe se registra como nuevo vehículo
         except Bus.DoesNotExist:
+            # Si no existe Busca que el chofer no este ya registrado en un vehículo
+            driverInBus = Bus.objects.filter(driver=busData['driver'], delete=False)
+            if driverInBus:
+                data = {
+                    'code': 'driver_exists_in_bus_error',
+                    'message': 'El chofer ' + driverInBus[0].driver.__str__() + ' ya está registrado en otro vehículo'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+            #Crea un nuevo vehículo
             serializer = BusSerializer(data=busData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -206,6 +220,7 @@ class BusViewSet(viewsets.ModelViewSet):
         bus = self.get_object()
 
         try:
+
             # Controla si la combi modificada ya existe
             busSearch = Bus.objects.get(identification=busData['identification'])
             # Si la encuentra informa que no se puede modificar porque ya existe anteriormente
@@ -261,7 +276,7 @@ class PlaceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     def all(self, request):
-        place = Place.objects.all()
+        place = Place.objects.filter(delete=False).order_by('province', 'town')
         serializer = PlaceSerializer(place, many=True)
         return Response(serializer.data)  # status 200
 
