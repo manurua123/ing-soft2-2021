@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 
-from .models import Supplies, Driver, Bus, Place, Route, Profile
+from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, Travel
 
 
 class SuppliesSerializer(serializers.ModelSerializer):
@@ -96,3 +96,52 @@ class RolSerializer(serializers.ModelSerializer):
         fields = ['name']
 
 
+class TravelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Travel
+        fields = '__all__'
+
+
+class TravelListSerializer(serializers.ModelSerializer):
+    route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
+    origin = serializers.SerializerMethodField()
+    destination = serializers.SerializerMethodField()
+    departure_date = serializers.SerializerMethodField()
+    departure_time = serializers.SerializerMethodField()
+    arrival_date = serializers.SerializerMethodField()
+    arrival_time = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_departure_date(obj):
+        return '{}'.format(obj.departure_date.date())
+
+    @staticmethod
+    def get_departure_time(obj):
+        return '{}'.format(obj.departure_date.strftime("%H:%M"))
+
+    @staticmethod
+    def get_arrival_date(obj):
+        return '{}'.format(obj.arrival_date.date())
+
+    @staticmethod
+    def get_arrival_time(obj):
+        return '{}'.format(obj.arrival_date.strftime("%H:%M"))
+
+    @staticmethod
+    def get_origin(obj):
+        return '{} - {}'.format(obj.route.origin.town, obj.route.origin.province)
+
+    @staticmethod
+    def get_destination(obj):
+        return '{} - {}'.format(obj.route.destination.town, obj.route.destination.province)
+
+    class Meta:
+        model = Travel
+        fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
+                  'arrival_date', 'arrival_time']
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = '__all__'

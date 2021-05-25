@@ -1,8 +1,6 @@
 # Create your models here.
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 
 class Supplies(models.Model):
@@ -62,7 +60,7 @@ class Route(models.Model):
     origin = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='origen')
     destination = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='destino')
     bus = models.ForeignKey(Bus, on_delete=models.RESTRICT)
-    duration = models.IntegerField(null=False)
+    duration = models.CharField(max_length=8, null=False)
     distance = models.IntegerField(null=False)
     delete = models.BooleanField(default=False)
 
@@ -85,3 +83,44 @@ class Profile(models.Model):
 
     def __str__(self):
         return self.phone
+
+
+class Travel(models.Model):
+    route = models.ForeignKey(Route, on_delete=models.RESTRICT)
+    departure_date = models.DateTimeField(null=False)
+    arrival_date = models.DateTimeField(null=False)
+    price = models.FloatField(null=False)
+    available_seats = models.IntegerField(null=False)
+    stateChoice = [('Pendiente', 'Pendiente'), ('Iniciado', 'Iniciado'),
+                   ('Terminado', 'Terminado'), ('Cancelado', 'Cancelado')]
+    state = models.CharField(max_length=10, choices=stateChoice, default='Pendiente', null=False)
+    delete = models.BooleanField(default=False)
+
+    def __str__(self):
+        txt = "{0} el día {1}"
+        return txt.format(self.route.__str__(), self.departure_date)
+
+
+class Ticket(models.Model):
+    supplies = models.ManyToManyField(Supplies, through="SuppliesDetail")
+    travel = models.ForeignKey(Travel, on_delete=models.RESTRICT)
+    buy_date = models.DateField(null=True)
+    idCards = models.IntegerField(null=True)
+    birth_date = models.DateField(null=True)
+    phone = models.CharField(max_length=20)
+    firstName = models.CharField(max_length=60, null=False)
+    lastName = models.CharField(max_length=60, null=False)
+    email = models.EmailField(null=False)
+    stateChoice = [('Activo', 'Activo'), ('Rechazado', 'Rechazado'), ('Cancelado', 'Cancelado')]
+    state = models.CharField(max_length=9, choices=stateChoice, default='Activo', null=False)
+    delete = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.firstName
+
+
+class SuppliesDetail(models.Model):
+    supplies = models.ForeignKey('Supplies', on_delete=models.RESTRICT)
+    ticket = models.ForeignKey('Ticket', on_delete=models.RESTRICT)
+    quantity = models.IntegerField(null=False)
+    price = models.FloatField(null=False)

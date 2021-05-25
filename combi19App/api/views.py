@@ -1,19 +1,28 @@
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.core import serializers
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth.models import User, Group
+from datetimerange import DateTimeRange
+from datetime import datetime
+from datetime import timezone
+import json
+from django.forms.models import model_to_dict
+from django.db import transaction
 
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
-    RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer
-from .models import Supplies, Driver, Bus, Place, Route, Profile
+    RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
+    TravelListSerializer, TicketSerializer
+
+from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel
 from rest_framework.response import Response
 from django.db.models import Q
 
 
 class SuppliesViewSet(viewsets.ModelViewSet):
-    queryset = Supplies.objects.all().order_by('description')
+    queryset = Supplies.objects.filter(delete=False).order_by('description')
     serializer_class = SuppliesSerializer
 
     # permission_classes = [IsAuthenticated]
@@ -84,6 +93,7 @@ class DriverViewSet(viewsets.ModelViewSet):
         serializer = DriverSerializer(driver, many=True)
         return Response(serializer.data)  # status 200
 
+    @transaction.atomic
     def create(self, request):
         driverData = request.data
         try:
@@ -112,6 +122,7 @@ class DriverViewSet(viewsets.ModelViewSet):
             serializer.save()
             return Response(serializer.data)  # status 200
 
+    @transaction.atomic
     def update(self, request, pk=None):
         driverData = request.data
         try:
@@ -144,6 +155,7 @@ class DriverViewSet(viewsets.ModelViewSet):
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
 
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         driver = self.get_object()
         # Controla que el chofer a eliminar no pertenezca a una combi activa
@@ -209,7 +221,7 @@ class BusViewSet(viewsets.ModelViewSet):
                     'message': 'El chofer ' + driverInBus[0].driver.__str__() + ' ya está registrado en otro vehículo'
                 }
                 return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-            #Crea un nuevo vehículo
+            # Crea un nuevo vehículo
             serializer = BusSerializer(data=busData)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -218,6 +230,15 @@ class BusViewSet(viewsets.ModelViewSet):
     def update(self, request, pk=None):
         busData = request.data
         bus = self.get_object()
+        #Controla que el vehiculo a modificar no pertenezca a un viaje activo
+        busInTravel = Travel.objects.filter((Q(state='Iniciado') | Q(state='Pendiente')), route__bus=pk,
+                                            delete=False, route__delete=False)
+        if busInTravel:
+            data = {
+                'code': 'bus_exists_in_travel_error',
+                'message': 'El vehículo ' + bus.__str__() + ' que esta tratando de modificar se encuentra en un viaje activo'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
 
         try:
 
@@ -361,6 +382,7 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         routeData = request.data
+        print(routeData)
         try:
             # Controla si la ruta a crear ya exista
             route = Route.objects.get(origin__id=routeData['origin'], destination__id=routeData['destination'],
@@ -392,7 +414,15 @@ class RouteViewSet(viewsets.ModelViewSet):
         route = self.get_object()
         serializer = RouteSerializer(route, data=routeData, partial=True)
         serializer.is_valid(raise_exception=True)
-        # Atención!!! Faltaria controlar que no este asignada a un viaje
+        #Controla que la ruta a modificar no pertenezca a un viaje
+        routeInTravel = Travel.objects.filter(route=pk, delete=False)
+        if routeInTravel:
+            data = {
+                'code': 'route_exists_in_travel_error',
+                'message': 'La ruta ' + str(route) + ' que esta tratando de modificar pertenece a un viaje'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             # Controla si la ruta modificada ya existe
             routeSearch = Route.objects.get(origin__id=routeData['origin'], destination__id=routeData['destination'],
@@ -413,7 +443,14 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         route = self.get_object()
-        # Atencion!!! Falta agregar la validación de que no exista esta ruta en un viaje
+        #Controla que la ruta a eliminar no pertenezca a un viaje
+        routeInTravel = Travel.objects.filter(route=kwargs.get('pk'), delete=False)
+        if routeInTravel:
+            data = {
+                'code': 'route_exists_in_travel_error',
+                'message': 'La ruta ' + str(route) + ' que esta tratando de eliminar pertenece a un viaje'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         # Realiza el borrado logico como un update
         route.delete = True
         serializer = RouteSerializer(route, data=route.__dict__, partial=True)
@@ -422,16 +459,121 @@ class RouteViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)  # status 200
 
 
+class TravelViewSet(viewsets.ModelViewSet):
+    queryset = Travel.objects.filter(delete=False).order_by('departure_date')
+    serializer_class = TravelListSerializer
+
+    @staticmethod
+    #Calcula que no se solapeen los horarios de los viajes
+    def is_date_overlap(departure1, departure2, arrival1, arrival2):
+        departure1 = departure1.replace(tzinfo=timezone.utc)
+        arrival1 = arrival1.replace(tzinfo=timezone.utc)
+        time_range1 = DateTimeRange(departure1, arrival1)
+        time_range2 = DateTimeRange(departure2, arrival2)
+        #departure2 = departure2 - (arrival1 - departure1)
+        #print("el resultado del calculo de fecha es" + str(departure2))
+        result = time_range1.intersection(time_range2)
+        return str(result) != 'NaT - NaT'
+
+    @action(detail=False)
+    # Devuelve el listado de viajes disponibles se necesita recibir por request body id de origin,
+    # id de destination y fecha de salida(departure) en formato "YYYY-MM-DD"
+    def get_available_travel(self, request):
+        travel = Travel.objects.filter(route__origin=request.data['origin'],
+                                       route__destination=request.data['destination'],
+                                       departure_date__date=request.data['departure'],
+                                       delete=False, state='Pendiente', available_seats__gt=0)
+        if not travel:
+            data = {
+                'code': 'travel_no_exists__error',
+                'message': 'No hay viajes disponibles para esa ruta y fecha'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = TravelListSerializer(travel, many=True)
+        return Response(serializer.data)  # status 200
+
+    def create(self, request):
+        travelData = request.data
+        # Controla que no se solapeen los horarios
+        travelList = list(filter(
+            lambda travel: self.is_date_overlap(datetime.strptime(travelData['departure_date'], "%d-%m-%Y %H:%M"),
+                                                travel.departure_date,
+                                                datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M"),
+                                                travel.arrival_date),
+            Travel.objects.filter(route__id=travelData['route'], delete=False)))
+        if travelList:
+            data = {
+                'code': 'travel_exists_error',
+                'message': 'El viaje que esta tratando de registrar ya existe en esos horarios'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        travelData['departure_date'] = datetime.strptime(travelData['departure_date'], "%d-%m-%Y %H:%M").replace(
+            tzinfo=timezone.utc)
+        travelData['arrival_date'] = datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M").replace(
+            tzinfo=timezone.utc)
+        route = Route.objects.get(id=travelData['route'])
+        travelData['available_seats'] = route.bus.seatNumbers
+        serializer = TravelSerializer(data=travelData)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
+    def update(self, request, pk=None):
+        travelData = request.data
+        travel = self.get_object()
+        #Controla que no haya pasajes vendidos
+        travelInTicket = Ticket.objects.filter(travel=pk, delete=False)
+        if travelInTicket:
+            data = {
+                'code': 'travel_exists_in_ticket_error',
+                'message': 'El viaje que esta tratando de modificar posee pasajes vendidos'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+
+        travelList = list(filter(
+            lambda travel_l: self.is_date_overlap(datetime.strptime(travelData['departure_date'], "%d-%m-%Y %H:%M"),
+                                                  travel_l.departure_date,
+                                                  datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M"),
+                                                  travel_l.arrival_date),
+            Travel.objects.filter(~Q(id=pk), route__id=travelData['route'], delete=False)))
+        if travelList:
+            data = {
+                'code': 'travel_exists_error',
+                'message': 'El viaje que esta tratando de modificar ya existe en esos horarios'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        travelData['departure_date'] = datetime.strptime(travelData['departure_date'], "%d-%m-%Y %H:%M").replace(
+            tzinfo=timezone.utc)
+        travelData['arrival_date'] = datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M").replace(
+            tzinfo=timezone.utc)
+        route = Route.objects.get(id=travelData['route'])
+        travelData['available_seats'] = route.bus.seatNumbers
+        serializer = TravelSerializer(travel, data=travelData, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
+    def destroy(self, request, *args, **kwargs):
+        travel = self.get_object()
+        # Realiza el borrado logico como un update si no tiene pasajes vendidos
+        travelInTicket = Ticket.objects.filter(travel=kwargs.get('pk'), delete=False)
+        if travelInTicket:
+            data = {
+                'code': 'travel_exists_in_ticket_error',
+                'message': 'El viaje que esta tratando de eliminar posee pasajes vendidos'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        travel.delete = True
+        travel.state = 'Cancelado'
+        serializer = TravelSerializer(travel, data=travel.__dict__, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
+
 class ProfileViewSet(viewsets.ModelViewSet):
     queryset = Profile.objects.filter(delete=False)
     serializer_class = ProfileSerializer
-
-    @action(detail=False)
-    def all(self, request):
-        user = User.objects.create_user(username='Cesar2', email='cesar.amiconi@hotmail.com', password='44hhd')
-        profile = Profile.objects.create(user=user, idCards=249531655, birth_date='2021-04-08', phone='734784347')
-        profile.save()
-        return Response('ok')  # status 200
 
     def create(self, request):
         profileData = request.data
@@ -466,3 +608,34 @@ class RolViewSet(viewsets.ModelViewSet):
         serializer = RolSerializer(user.groups, many=True)
 
         return Response(serializer.data)  # status 200
+
+
+class TicketViewSet(viewsets.ModelViewSet):
+    queryset = Ticket.objects.filter(delete=False)
+    serializer_class = TicketSerializer
+
+    @transaction.atomic
+    def create(self, request):
+        # Registra la venta del pasaje si tiene lugar disponible
+        list_supplies = request.data["suppliesId"]
+        ticketData = request.data
+        travel = Travel.objects.get(id=ticketData['travel'])
+        ticket = Ticket(idCards=ticketData['idCards'], birth_date=ticketData['birth_date'],
+                        phone=ticketData['phone'], firstName=ticketData['firstName'],
+                        lastName=ticketData['lastName'], email=ticketData['email'],
+                        travel=travel, buy_date=datetime.today())
+        if travel.available_seats <= 0:
+            data = {
+                'code': 'not_seats_error',
+                'message': 'No hay lugares disponibles'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        ticket.save()
+        travel.available_seats = travel.available_seats - 1
+        travel.save()
+        for record in list_supplies:
+            supplies = Supplies.objects.get(id=record['id'])
+            supplies_detail = SuppliesDetail.objects.create(supplies=supplies, ticket=ticket,
+                                                            quantity=record['quantity'], price=record['price'])
+            supplies_detail.save()
+        return Response(json.dumps(model_to_dict(ticket), sort_keys=True, default=str))  # status 200
