@@ -104,9 +104,10 @@ class Travel(models.Model):
 class Ticket(models.Model):
     supplies = models.ManyToManyField(Supplies, through="SuppliesDetail")
     travel = models.ForeignKey(Travel, on_delete=models.RESTRICT)
-    buy_date = models.DateField(null=True)
-    idCards = models.IntegerField(null=True)
-    birth_date = models.DateField(null=True)
+    user = models.ForeignKey(User, on_delete=models.RESTRICT)
+    buy_date = models.DateField(null=False)
+    idCards = models.IntegerField(null=False)
+    birth_date = models.DateField(null=False)
     phone = models.CharField(max_length=20)
     firstName = models.CharField(max_length=60, null=False)
     lastName = models.CharField(max_length=60, null=False)

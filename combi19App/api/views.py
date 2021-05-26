@@ -230,7 +230,7 @@ class BusViewSet(viewsets.ModelViewSet):
     def update(self, request, pk=None):
         busData = request.data
         bus = self.get_object()
-        #Controla que el vehiculo a modificar no pertenezca a un viaje activo
+        # Controla que el vehiculo a modificar no pertenezca a un viaje activo
         busInTravel = Travel.objects.filter((Q(state='Iniciado') | Q(state='Pendiente')), route__bus=pk,
                                             delete=False, route__delete=False)
         if busInTravel:
@@ -414,7 +414,7 @@ class RouteViewSet(viewsets.ModelViewSet):
         route = self.get_object()
         serializer = RouteSerializer(route, data=routeData, partial=True)
         serializer.is_valid(raise_exception=True)
-        #Controla que la ruta a modificar no pertenezca a un viaje
+        # Controla que la ruta a modificar no pertenezca a un viaje
         routeInTravel = Travel.objects.filter(route=pk, delete=False)
         if routeInTravel:
             data = {
@@ -443,7 +443,7 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         route = self.get_object()
-        #Controla que la ruta a eliminar no pertenezca a un viaje
+        # Controla que la ruta a eliminar no pertenezca a un viaje
         routeInTravel = Travel.objects.filter(route=kwargs.get('pk'), delete=False)
         if routeInTravel:
             data = {
@@ -464,14 +464,14 @@ class TravelViewSet(viewsets.ModelViewSet):
     serializer_class = TravelListSerializer
 
     @staticmethod
-    #Calcula que no se solapeen los horarios de los viajes
+    # Calcula que no se solapeen los horarios de los viajes
     def is_date_overlap(departure1, departure2, arrival1, arrival2):
         departure1 = departure1.replace(tzinfo=timezone.utc)
         arrival1 = arrival1.replace(tzinfo=timezone.utc)
         time_range1 = DateTimeRange(departure1, arrival1)
         time_range2 = DateTimeRange(departure2, arrival2)
-        #departure2 = departure2 - (arrival1 - departure1)
-        #print("el resultado del calculo de fecha es" + str(departure2))
+        # departure2 = departure2 - (arrival1 - departure1)
+        # print("el resultado del calculo de fecha es" + str(departure2))
         result = time_range1.intersection(time_range2)
         return str(result) != 'NaT - NaT'
 
@@ -521,7 +521,7 @@ class TravelViewSet(viewsets.ModelViewSet):
     def update(self, request, pk=None):
         travelData = request.data
         travel = self.get_object()
-        #Controla que no haya pasajes vendidos
+        # Controla que no haya pasajes vendidos
         travelInTicket = Ticket.objects.filter(travel=pk, delete=False)
         if travelInTicket:
             data = {
@@ -587,10 +587,19 @@ class ProfileViewSet(viewsets.ModelViewSet):
         except User.DoesNotExist:
             rol = Group.objects.get(name='CLIENT')
             userNew = User.objects.create_user(username=profileData["username"], email=profileData["email"],
-                                               password=profileData["password"])
+                                               password=profileData["password"], last_name=profileData["lastname"],
+                                               first_name=profileData["firstname"])
             rol.user_set.add(userNew)
-            profile = Profile.objects.create(user=userNew, idCards=profileData["idCards"],
-                                             birth_date=profileData["birth_date"], phone=profileData["phone"])
+            if 'card_holder' in profileData:
+                profile = Profile.objects.create(user=userNew, idCards=profileData["idCards"],
+                                                 birth_date=profileData["birth_date"], phone=profileData["phone"],
+                                                 card_holder=profileData["card_holder"],
+                                                 card_number=profileData["card_number"],
+                                                 month_exp=profileData["month_exp"], year_exp=profileData["year_exp"],
+                                                 security_code=profileData["security_code"])
+            else:
+                profile = Profile.objects.create(user=userNew, idCards=profileData["idCards"],
+                                                 birth_date=profileData["birth_date"], phone=profileData["phone"])
 
             profile.save()
             serializer = ProfileSerializer(data=profile.__dict__)
@@ -620,10 +629,11 @@ class TicketViewSet(viewsets.ModelViewSet):
         list_supplies = request.data["suppliesId"]
         ticketData = request.data
         travel = Travel.objects.get(id=ticketData['travel'])
+        user = User.objects.get(id=ticketData['user'])
         ticket = Ticket(idCards=ticketData['idCards'], birth_date=ticketData['birth_date'],
                         phone=ticketData['phone'], firstName=ticketData['firstName'],
                         lastName=ticketData['lastName'], email=ticketData['email'],
-                        travel=travel, buy_date=datetime.today())
+                        travel=travel, buy_date=datetime.today(), user=user)
         if travel.available_seats <= 0:
             data = {
                 'code': 'not_seats_error',
