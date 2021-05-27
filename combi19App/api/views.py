@@ -380,6 +380,12 @@ class RouteViewSet(viewsets.ModelViewSet):
     queryset = Route.objects.filter(delete=False).order_by('origin__province', 'origin__town')
     serializer_class = RouteListSerializer
 
+    @action(detail=False)
+    def all(self, request):
+        route = Route.objects.filter(delete=False)
+        serializer = RouteListSerializer(route, many=True)
+        return Response(serializer.data)  # status 200
+
     def create(self, request):
         routeData = request.data
         print(routeData)

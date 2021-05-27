@@ -61,7 +61,17 @@ class RouteListSerializer(serializers.ModelSerializer):
     destination_id = serializers.CharField(source='destination.id')
     bus_id = serializers.CharField(source='bus.id')
     origin = serializers.SerializerMethodField()
+    duration = serializers.SerializerMethodField()
     destination = serializers.SerializerMethodField()
+    total_minute = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_duration(obj):
+        return '{}'.format(obj.duration.strftime("%H:%M"))
+
+    @staticmethod
+    def get_total_minute(obj):
+        return int('{}'.format(obj.duration.hour * 60 + obj.duration.minute))
 
     @staticmethod
     def get_origin(obj):
@@ -105,6 +115,7 @@ class TravelSerializer(serializers.ModelSerializer):
 class TravelListSerializer(serializers.ModelSerializer):
     route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
     origin = serializers.SerializerMethodField()
+    origin_id = serializers.CharField(source='origin.id')
     destination = serializers.SerializerMethodField()
     departure_date = serializers.SerializerMethodField()
     departure_time = serializers.SerializerMethodField()
@@ -138,7 +149,7 @@ class TravelListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time']
+                  'arrival_date', 'arrival_time', 'available_seats']
 
 
 class TicketSerializer(serializers.ModelSerializer):

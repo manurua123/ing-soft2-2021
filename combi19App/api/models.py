@@ -60,7 +60,7 @@ class Route(models.Model):
     origin = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='origen')
     destination = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='destino')
     bus = models.ForeignKey(Bus, on_delete=models.RESTRICT)
-    duration = models.CharField(max_length=8, null=False)
+    duration = models.TimeField(null=False)
     distance = models.IntegerField(null=False)
     delete = models.BooleanField(default=False)
 
