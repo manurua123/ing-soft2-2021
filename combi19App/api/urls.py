@@ -13,6 +13,10 @@ router.register(r'driver', views.DriverViewSet)
 router.register(r'bus', views.BusViewSet)
 router.register(r'place', views.PlaceViewSet)
 router.register(r'route', views.RouteViewSet)
+router.register(r'profile', views.ProfileViewSet)
+router.register(r'roles', views.RolViewSet)
+router.register(r'travel', views.TravelViewSet)
+router.register(r'ticket', views.TicketViewSet)
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
 urlpatterns = [
