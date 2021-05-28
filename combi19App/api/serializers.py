@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 
-from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, Travel
+from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, Travel, Comment
 
 
 class SuppliesSerializer(serializers.ModelSerializer):
@@ -115,7 +115,6 @@ class TravelSerializer(serializers.ModelSerializer):
 class TravelListSerializer(serializers.ModelSerializer):
     route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
     origin = serializers.SerializerMethodField()
-    origin_id = serializers.CharField(source='origin.id')
     destination = serializers.SerializerMethodField()
     departure_date = serializers.SerializerMethodField()
     departure_time = serializers.SerializerMethodField()
@@ -155,4 +154,16 @@ class TravelListSerializer(serializers.ModelSerializer):
 class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
+        fields = '__all__'
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_date(obj):
+        return '{}'.format(obj.date.strftime("%d-%m-%Y %H:%M"))
+
+    class Meta:
+        model = Comment
         fields = '__all__'

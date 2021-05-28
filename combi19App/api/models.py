@@ -1,6 +1,7 @@
 # Create your models here.
 from django.contrib.auth.models import User
 from django.db import models
+from datetime import datetime
 
 
 class Supplies(models.Model):
@@ -125,3 +126,10 @@ class SuppliesDetail(models.Model):
     ticket = models.ForeignKey('Ticket', on_delete=models.RESTRICT)
     quantity = models.IntegerField(null=False)
     price = models.FloatField(null=False)
+
+
+class Comment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.RESTRICT)
+    text = models.TextField(null=False)
+    date = models.DateTimeField(default=datetime.now())
+    delete = models.BooleanField(default=False)

@@ -14,9 +14,9 @@ from django.db import transaction
 
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
     RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
-    TravelListSerializer, TicketSerializer
+    TravelListSerializer, TicketSerializer, CommentSerializer
 
-from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel
+from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel, Comment
 from rest_framework.response import Response
 from django.db.models import Q
 
@@ -655,3 +655,45 @@ class TicketViewSet(viewsets.ModelViewSet):
                                                             quantity=record['quantity'], price=record['price'])
             supplies_detail.save()
         return Response(json.dumps(model_to_dict(ticket), sort_keys=True, default=str))  # status 200
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    queryset = Comment.objects.filter(delete=False).order_by('date')
+    serializer_class = CommentSerializer
+
+    @action(detail=False)
+    def all(self, request):
+        comment = Comment.objects.filter(delete=False).order_by('date')
+        serializer = CommentSerializer(comment, many=True)
+        return Response(serializer.data)  # status 200
+
+    def create(self, request):
+        commentData = request.data
+        userInTicket = Ticket.objects.filter(user=commentData['user'], delete=False)
+        if not userInTicket:
+            data = {
+                'code': 'not_ticket_error',
+                'message': 'Estimado usuario para poder comentar se necesita haber adquirido al menos un pasaje'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = CommentSerializer(data=commentData)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
+    def update(self, request, pk=None):
+        commentData = request.data
+        comment = self.get_object()
+        comment.date = datetime.today()
+        serializer = CommentSerializer(comment, data=commentData, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
+
+    def destroy(self, request, *args, **kwargs):
+        comment = self.get_object()
+        comment.delete = True
+        serializer = CommentSerializer(comment, data=comment.__dict__, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)  # status 200
