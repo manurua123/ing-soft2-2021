@@ -64,6 +64,7 @@ class RouteListSerializer(serializers.ModelSerializer):
     duration = serializers.SerializerMethodField()
     destination = serializers.SerializerMethodField()
     total_minute = serializers.SerializerMethodField()
+    seat_numbers = serializers.CharField(source='bus.seatNumbers')
 
     @staticmethod
     def get_duration(obj):

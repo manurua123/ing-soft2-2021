@@ -613,6 +613,29 @@ class ProfileViewSet(viewsets.ModelViewSet):
             # serializer.save()
             return Response(serializer.data)  # status 200
 
+    @transaction.atomic
+    def update(self, request, pk=None):
+        profileData = request.data
+        profile = self.get_object()
+        user = User.objects.get(username=profileData["username"])
+        user.first_name = profileData["firstname"]
+        user.last_name = profileData["lastname"]
+        user.save()
+        profile.idCards = profileData["idCards"]
+        profile.birth_date = profileData["birth_date"]
+        profile.phone = profileData["phone"]
+        if 'card_holder' in profileData:
+            profile.card_holder = profileData["card_holder"]
+            profile.card_number = profileData["card_number"]
+            profile.month_exp = profileData["month_exp"]
+            profile.year_exp = profileData["year_exp"]
+            profile.security_code = profileData["security_code"]
+        profile.save()
+        serializer = ProfileSerializer(data=profile.__dict__)
+        serializer.is_valid(raise_exception=False)
+        # serializer.save()
+        return Response(serializer.data)  # status 200
+
 
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
