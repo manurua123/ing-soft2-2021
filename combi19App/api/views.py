@@ -662,7 +662,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket = Ticket(idCards=ticketData['idCards'], birth_date=ticketData['birth_date'],
                         phone=ticketData['phone'], firstName=ticketData['firstName'],
                         lastName=ticketData['lastName'], email=ticketData['email'],
-                        travel=travel, buy_date=datetime.today(), user=user)
+                        travel=travel, buy_date=datetime.today(), user=user, amount_paid=ticketData['amount_paid'])
         if travel.available_seats <= 0:
             data = {
                 'code': 'not_seats_error',

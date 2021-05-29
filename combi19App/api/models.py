@@ -107,6 +107,7 @@ class Ticket(models.Model):
     travel = models.ForeignKey(Travel, on_delete=models.RESTRICT)
     user = models.ForeignKey(User, on_delete=models.RESTRICT)
     buy_date = models.DateField(null=False)
+    amount_paid = models.FloatField(null=False)
     idCards = models.IntegerField(null=False)
     birth_date = models.DateField(null=False)
     phone = models.CharField(max_length=20)
