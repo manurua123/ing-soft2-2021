@@ -93,6 +93,18 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['username', 'password']
 
 
+class UserSignSerializer(serializers.ModelSerializer):
+    rol = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_rol(obj):
+        return obj.groups.get().name
+
+    class Meta:
+        model = User
+        fields = ['username', 'rol']
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
 
@@ -105,6 +117,24 @@ class RolSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = ['name']
+
+
+class ProfileSignSerializer(serializers.ModelSerializer):
+    user = serializers.SlugRelatedField(slug_field="username", queryset=User.objects.all())
+    gold = serializers.SerializerMethodField()
+    rol = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_gold(obj):
+        return obj.card_holder is not None
+
+    @staticmethod
+    def get_rol(obj):
+        return obj.user.groups.get().name
+
+    class Meta:
+        model = Profile
+        fields = ['user', 'rol', 'gold']
 
 
 class TravelSerializer(serializers.ModelSerializer):
@@ -149,10 +179,19 @@ class TravelListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time', 'available_seats']
+                  'arrival_date', 'arrival_time', 'available_seats', 'delete']
 
 
 class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = '__all__'
+
+
+class TicketListSerializer(serializers.ModelSerializer):
+    travel = TravelSerializer()
+    user_id = serializers.CharField(source='user.id')
+
     class Meta:
         model = Ticket
         fields = '__all__'

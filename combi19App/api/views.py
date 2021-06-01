@@ -1,3 +1,4 @@
+from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.core import serializers
@@ -14,7 +15,8 @@ from django.db import transaction
 
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
     RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
-    TravelListSerializer, TicketSerializer, CommentSerializer
+    TravelListSerializer, TicketSerializer, CommentSerializer, TicketListSerializer, ProfileSignSerializer, \
+    UserSignSerializer
 
 from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel, Comment
 from rest_framework.response import Response
@@ -485,9 +487,9 @@ class TravelViewSet(viewsets.ModelViewSet):
     # Devuelve el listado de viajes disponibles se necesita recibir por request body id de origin,
     # id de destination y fecha de salida(departure) en formato "YYYY-MM-DD"
     def get_available_travel(self, request):
-        travel = Travel.objects.filter(route__origin=request.data['origin'],
-                                       route__destination=request.data['destination'],
-                                       departure_date__date=request.data['departure'],
+        travel = Travel.objects.filter(route__origin=request.GET['origin'],
+                                       route__destination=request.GET['destination'],
+                                       departure_date__date=request.GET['departure'],
                                        delete=False, state='Pendiente', available_seats__gt=0)
         if not travel:
             data = {
@@ -644,8 +646,39 @@ class RolViewSet(viewsets.ModelViewSet):
     def get_roles_by_user(self, request):
         user = User.objects.get(username=request.GET['username'])
         serializer = RolSerializer(user.groups, many=True)
-
         return Response(serializer.data)  # status 200
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+
+    @action(detail=False, methods=['post'])
+    def sign_in(self, request):
+        user = authenticate(username=request.data['username'], password=request.data['password'])
+        if user is not None:
+            if user.groups.get().name == 'CLIENT':
+                profile = Profile.objects.get(user=user.id)
+                serializer = ProfileSignSerializer(profile)
+            else:
+                serializer = UserSignSerializer(user)
+            return Response(serializer.data)  # status 200
+        else:
+            data = {
+                'code': 'authenticate_error',
+                'message': 'Usuario o Clave Incorrecta'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def change_password(self, request):
+        user = self.context["request"].user
+        user.set_password(request.data['password'])
+        user.save()
+        data = {
+            'code': 'password_change',
+            'message': 'Se cambio la contraseña correctamente'
+        }
+        return Response(data=data, status=status.HTTP_200_OK)
 
 
 class TicketViewSet(viewsets.ModelViewSet):
@@ -678,6 +711,62 @@ class TicketViewSet(viewsets.ModelViewSet):
                                                             quantity=record['quantity'], price=record['price'])
             supplies_detail.save()
         return Response(json.dumps(model_to_dict(ticket), sort_keys=True, default=str))  # status 200
+
+    @action(detail=False)
+    # Devuelve el listado de ticket de viajes adquiridos por un usuario
+    def get_my_travels(self, request):
+        tickets = Ticket.objects.filter(user=request.data['user'])
+        if not tickets:
+            data = {
+                'code': 'ticket_no_exists__error',
+                'message': 'El usuario no posee pasajes adquiridos'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = TicketListSerializer(tickets, many=True)
+        return Response(serializer.data)  # status 200
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def return_ticket(self, request):
+        ticket = Ticket.objects.get(id=request.data["ticket"])
+        if (ticket.travel.state != 'Pendiente') or (ticket.state != 'Activo'):
+            data = {
+                'code': 'ticket_return__error',
+                'message': 'El pasaje no puede ser devuelto'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        departure_date = ticket.travel.departure_date
+        today = datetime.today().replace(tzinfo=timezone.utc)
+        difference = departure_date - today
+        if difference.days >= 2:
+            data = {
+                'code': 'ticket_total_return__error',
+                'message': 'Se registro la devolucíon del pasaje antes de las 48hs de la fecha del viaje. Se vera'
+                           ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid) + ' '
+                                                                                                             'correspondiente al 100% de lo abonado '
+            }
+        else:
+            if difference.days >= 0:
+                data = {
+                    'code': 'ticket_partial_return__error',
+                    'message': 'Se registro la devolucíon del pasaje dentro de las 48hs de la fecha del viaje. Se vera'
+                               ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid / 2) + ' '
+                                                                                                                     'correspondiente al 50% de lo abonado.'
+                }
+            else:
+                data = {
+                    'code': 'ticket_no_exists__error',
+                    'message': 'El pasaje no puede ser devuelto'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+
+        # Volver a agregar 1 asiento disponible en el viaje
+        travel = Travel.objects.get(id=ticket.travel.id)
+        travel.available_seats = travel.available_seats + 1
+        travel.save()
+        ticket.state = 'Cancelado'
+        ticket.save()
+        return Response(data=data, status=status.HTTP_200_OK)
 
 
 class CommentViewSet(viewsets.ModelViewSet):

@@ -18,6 +18,8 @@ router.register(r'roles', views.RolViewSet)
 router.register(r'travel', views.TravelViewSet)
 router.register(r'ticket', views.TicketViewSet)
 router.register(r'comment', views.CommentViewSet)
+router.register(r'user', views.UserViewSet)
+
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
 urlpatterns = [
