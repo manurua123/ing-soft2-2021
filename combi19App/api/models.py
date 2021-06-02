@@ -1,6 +1,7 @@
 # Create your models here.
 from django.contrib.auth.models import User
 from django.db import models
+from datetime import datetime
 
 
 class Supplies(models.Model):
@@ -60,7 +61,7 @@ class Route(models.Model):
     origin = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='origen')
     destination = models.ForeignKey(Place, on_delete=models.RESTRICT, related_name='destino')
     bus = models.ForeignKey(Bus, on_delete=models.RESTRICT)
-    duration = models.CharField(max_length=8, null=False)
+    duration = models.TimeField(null=False)
     distance = models.IntegerField(null=False)
     delete = models.BooleanField(default=False)
 
@@ -104,9 +105,11 @@ class Travel(models.Model):
 class Ticket(models.Model):
     supplies = models.ManyToManyField(Supplies, through="SuppliesDetail")
     travel = models.ForeignKey(Travel, on_delete=models.RESTRICT)
-    buy_date = models.DateField(null=True)
-    idCards = models.IntegerField(null=True)
-    birth_date = models.DateField(null=True)
+    user = models.ForeignKey(User, on_delete=models.RESTRICT)
+    buy_date = models.DateField(null=False)
+    amount_paid = models.FloatField(null=False)
+    idCards = models.IntegerField(null=False)
+    birth_date = models.DateField(null=False)
     phone = models.CharField(max_length=20)
     firstName = models.CharField(max_length=60, null=False)
     lastName = models.CharField(max_length=60, null=False)
@@ -124,3 +127,10 @@ class SuppliesDetail(models.Model):
     ticket = models.ForeignKey('Ticket', on_delete=models.RESTRICT)
     quantity = models.IntegerField(null=False)
     price = models.FloatField(null=False)
+
+
+class Comment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.RESTRICT)
+    text = models.TextField(null=False)
+    date = models.DateTimeField(default=datetime.now())
+    delete = models.BooleanField(default=False)

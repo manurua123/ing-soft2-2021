@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 
-from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, Travel
+from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, Travel, Comment
 
 
 class SuppliesSerializer(serializers.ModelSerializer):
@@ -61,7 +61,18 @@ class RouteListSerializer(serializers.ModelSerializer):
     destination_id = serializers.CharField(source='destination.id')
     bus_id = serializers.CharField(source='bus.id')
     origin = serializers.SerializerMethodField()
+    duration = serializers.SerializerMethodField()
     destination = serializers.SerializerMethodField()
+    total_minute = serializers.SerializerMethodField()
+    seat_numbers = serializers.CharField(source='bus.seatNumbers')
+
+    @staticmethod
+    def get_duration(obj):
+        return '{}'.format(obj.duration.strftime("%H:%M"))
+
+    @staticmethod
+    def get_total_minute(obj):
+        return int('{}'.format(obj.duration.hour * 60 + obj.duration.minute))
 
     @staticmethod
     def get_origin(obj):
@@ -82,6 +93,18 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['username', 'password']
 
 
+class UserSignSerializer(serializers.ModelSerializer):
+    rol = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_rol(obj):
+        return obj.groups.get().name
+
+    class Meta:
+        model = User
+        fields = ['username', 'rol']
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
 
@@ -94,6 +117,24 @@ class RolSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = ['name']
+
+
+class ProfileSignSerializer(serializers.ModelSerializer):
+    user = serializers.SlugRelatedField(slug_field="username", queryset=User.objects.all())
+    gold = serializers.SerializerMethodField()
+    rol = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_gold(obj):
+        return obj.card_holder is not None
+
+    @staticmethod
+    def get_rol(obj):
+        return obj.user.groups.get().name
+
+    class Meta:
+        model = Profile
+        fields = ['user', 'rol', 'gold']
 
 
 class TravelSerializer(serializers.ModelSerializer):
@@ -110,7 +151,6 @@ class TravelListSerializer(serializers.ModelSerializer):
     departure_time = serializers.SerializerMethodField()
     arrival_date = serializers.SerializerMethodField()
     arrival_time = serializers.SerializerMethodField()
-
 
     @staticmethod
     def get_departure_date(obj):
@@ -136,15 +176,34 @@ class TravelListSerializer(serializers.ModelSerializer):
     def get_destination(obj):
         return '{} - {}'.format(obj.route.destination.town, obj.route.destination.province)
 
-
-
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time', 'available_seats']
+                  'arrival_date', 'arrival_time', 'available_seats', 'delete']
 
 
 class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
+        fields = '__all__'
+
+
+class TicketListSerializer(serializers.ModelSerializer):
+    travel = TravelSerializer()
+    user_id = serializers.CharField(source='user.id')
+
+    class Meta:
+        model = Ticket
+        fields = '__all__'
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_date(obj):
+        return '{}'.format(obj.date.strftime("%d-%m-%Y %H:%M"))
+
+    class Meta:
+        model = Comment
         fields = '__all__'
