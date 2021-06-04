@@ -16,7 +16,7 @@ from django.db import transaction
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
     RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
     TravelListSerializer, TicketSerializer, CommentSerializer, TicketListSerializer, ProfileSignSerializer, \
-    UserSignSerializer
+    UserSignSerializer, UserSerializer
 
 from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel, Comment
 from rest_framework.response import Response
@@ -679,6 +679,16 @@ class UserViewSet(viewsets.ModelViewSet):
             'message': 'Se cambio la contraseña correctamente'
         }
         return Response(data=data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def view_profile(self, request):
+        user = User.objects.get(username=request.data['username'])
+        if user.groups.get().name != 'ADMIN':
+            profile = Profile.objects.get(user=user.id)
+            serializer = ProfileSerializer(profile)
+        else:
+            serializer = UserSerializer(user)
+        return Response(serializer.data)  # status 200
 
 
 class TicketViewSet(viewsets.ModelViewSet):

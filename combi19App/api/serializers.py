@@ -87,10 +87,22 @@ class RouteListSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class RolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ['name']
+
+
 class UserSerializer(serializers.ModelSerializer):
+    rol = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_rol(obj):
+        return obj.groups.get().name
+
     class Meta:
         model = User
-        fields = ['username', 'password']
+        fields = ['username', 'last_name', 'first_name', 'email', 'rol']
 
 
 class UserSignSerializer(serializers.ModelSerializer):
@@ -107,20 +119,20 @@ class UserSignSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
+    gold = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_gold(obj):
+        return obj.card_holder is not None
 
     class Meta:
         model = Profile
         fields = '__all__'
 
 
-class RolSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Group
-        fields = ['name']
-
-
 class ProfileSignSerializer(serializers.ModelSerializer):
     user = serializers.SlugRelatedField(slug_field="username", queryset=User.objects.all())
+    user_id = serializers.CharField(source='user.id')
     gold = serializers.SerializerMethodField()
     rol = serializers.SerializerMethodField()
 
@@ -134,7 +146,7 @@ class ProfileSignSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['user', 'rol', 'gold']
+        fields = ['user', 'rol', 'gold', 'user_id']
 
 
 class TravelSerializer(serializers.ModelSerializer):
