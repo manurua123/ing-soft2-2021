@@ -18,6 +18,8 @@ pip install djangorestframework_simplejwt
 
 pip install django-cors-headers
 
+pip install DateTimeRange
 
 
-Iniciar:  python manage.py runserver
+
+python manage.py runserver
