@@ -780,7 +780,7 @@ class TicketViewSet(viewsets.ModelViewSet):
 
 
 class CommentViewSet(viewsets.ModelViewSet):
-    queryset = Comment.objects.filter(delete=False).order_by('date')
+    queryset = Comment.objects.filter(delete=False).order_by('-date')
     serializer_class = CommentSerializer
 
     @action(detail=False)

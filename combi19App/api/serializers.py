@@ -158,6 +158,7 @@ class TravelSerializer(serializers.ModelSerializer):
 class TravelListSerializer(serializers.ModelSerializer):
     route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
     origin = serializers.SerializerMethodField()
+    duration = serializers.CharField(source='route.duration')
     destination = serializers.SerializerMethodField()
     departure_date = serializers.SerializerMethodField()
     departure_time = serializers.SerializerMethodField()
@@ -191,7 +192,7 @@ class TravelListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time', 'available_seats', 'delete']
+                  'arrival_date', 'arrival_time', 'available_seats', 'delete', 'duration']
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -214,7 +215,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_date(obj):
-        return '{}'.format(obj.date.strftime("%d-%m-%Y %H:%M"))
+        return '{}'.format(obj.date.strftime("%d/%m/%Y"))
 
     class Meta:
         model = Comment
