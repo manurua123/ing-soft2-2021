@@ -210,6 +210,21 @@ class TicketListSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class CommentListSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+    user = serializers.SlugRelatedField(slug_field="id", queryset=User.objects.all())
+    user_first_name = serializers.CharField(source='user.first_name')
+    user_last_name = serializers.CharField(source='user.last_name')
+
+    @staticmethod
+    def get_date(obj):
+        return '{}'.format(obj.date.strftime("%d/%m/%Y"))
+
+    class Meta:
+        model = Comment
+        fields = '__all__'
+
+
 class CommentSerializer(serializers.ModelSerializer):
     date = serializers.SerializerMethodField()
 

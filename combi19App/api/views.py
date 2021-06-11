@@ -16,7 +16,7 @@ from django.db import transaction
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
     RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
     TravelListSerializer, TicketSerializer, CommentSerializer, TicketListSerializer, ProfileSignSerializer, \
-    UserSignSerializer, UserSerializer
+    UserSignSerializer, UserSerializer, CommentListSerializer
 
 from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel, Comment
 from rest_framework.response import Response
@@ -785,8 +785,9 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     def all(self, request):
-        comment = Comment.objects.filter(delete=False).order_by('date')
-        serializer = CommentSerializer(comment, many=True)
+        comment = Comment.objects.filter(delete=False).order_by('-date')
+        comment = comment[:10]
+        serializer = CommentListSerializer(comment, many=True)
         return Response(serializer.data)  # status 200
 
     def create(self, request):
