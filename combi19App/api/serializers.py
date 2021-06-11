@@ -158,7 +158,6 @@ class TravelSerializer(serializers.ModelSerializer):
 class TravelListSerializer(serializers.ModelSerializer):
     route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
     origin = serializers.SerializerMethodField()
-    state = serializers.Charfield(source='state')
     duration = serializers.CharField(source='route.duration')
     destination = serializers.SerializerMethodField()
     departure_date = serializers.SerializerMethodField()

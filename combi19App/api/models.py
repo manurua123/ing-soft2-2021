@@ -114,7 +114,8 @@ class Ticket(models.Model):
     firstName = models.CharField(max_length=60, null=False)
     lastName = models.CharField(max_length=60, null=False)
     email = models.EmailField(null=False)
-    stateChoice = [('Activo', 'Activo'), ('Rechazado', 'Rechazado'), ('Cancelado', 'Cancelado')]
+    stateChoice = [('Activo', 'Activo'), ('Rechazado', 'Rechazado'),
+                   ('Devuelto', 'Devuelto'), ('Cancelado', 'Cancelado')]
     state = models.CharField(max_length=9, choices=stateChoice, default='Activo', null=False)
     delete = models.BooleanField(default=False)
 

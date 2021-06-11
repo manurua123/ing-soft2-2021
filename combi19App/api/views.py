@@ -725,7 +725,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=False)
     # Devuelve el listado de ticket de viajes adquiridos por un usuario
     def get_my_travels(self, request):
-        tickets = Ticket.objects.filter(user=request.data['user'])
+        tickets = Ticket.objects.filter(user=request.GET['user'])
         if not tickets:
             data = {
                 'code': 'ticket_no_exists__error',
@@ -774,7 +774,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         travel = Travel.objects.get(id=ticket.travel.id)
         travel.available_seats = travel.available_seats + 1
         travel.save()
-        ticket.state = 'Cancelado'
+        ticket.state = 'Devuelto'
         ticket.save()
         return Response(data=data, status=status.HTTP_200_OK)
 
