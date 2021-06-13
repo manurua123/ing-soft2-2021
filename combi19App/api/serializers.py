@@ -158,6 +158,7 @@ class TravelSerializer(serializers.ModelSerializer):
 class TravelListSerializer(serializers.ModelSerializer):
     route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
     origin = serializers.SerializerMethodField()
+    type_bus = serializers.CharField(source='route.bus.type')
     duration = serializers.CharField(source='route.duration')
     destination = serializers.SerializerMethodField()
     departure_date = serializers.SerializerMethodField()
@@ -192,7 +193,7 @@ class TravelListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time', 'available_seats', 'delete', 'duration', 'state']
+                  'arrival_date', 'arrival_time', 'available_seats', 'delete', 'duration', 'state', 'type_bus']
 
 
 class TicketSerializer(serializers.ModelSerializer):

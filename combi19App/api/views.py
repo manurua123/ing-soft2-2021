@@ -671,12 +671,12 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def change_password(self, request):
-        user = self.context["request"].user
+        user = User.objects.get(id=request.data['user'])
         user.set_password(request.data['password'])
         user.save()
         data = {
             'code': 'password_change',
-            'message': 'Se cambio la contraseña correctamente'
+            'message': 'La Contraseña se ha modificado correctamente'
         }
         return Response(data=data, status=status.HTTP_200_OK)
 
