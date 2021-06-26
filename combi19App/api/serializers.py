@@ -87,10 +87,22 @@ class RouteListSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class RolSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ['name']
+
+
 class UserSerializer(serializers.ModelSerializer):
+    rol = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_rol(obj):
+        return obj.groups.get().name
+
     class Meta:
         model = User
-        fields = ['username', 'password']
+        fields = ['username', 'last_name', 'first_name', 'email', 'rol']
 
 
 class UserSignSerializer(serializers.ModelSerializer):
@@ -107,20 +119,20 @@ class UserSignSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
+    gold = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_gold(obj):
+        return obj.card_holder is not None
 
     class Meta:
         model = Profile
         fields = '__all__'
 
 
-class RolSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Group
-        fields = ['name']
-
-
 class ProfileSignSerializer(serializers.ModelSerializer):
     user = serializers.SlugRelatedField(slug_field="username", queryset=User.objects.all())
+    user_id = serializers.CharField(source='user.id')
     gold = serializers.SerializerMethodField()
     rol = serializers.SerializerMethodField()
 
@@ -134,7 +146,7 @@ class ProfileSignSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['user', 'rol', 'gold']
+        fields = ['user', 'rol', 'gold', 'user_id']
 
 
 class TravelSerializer(serializers.ModelSerializer):
@@ -146,11 +158,19 @@ class TravelSerializer(serializers.ModelSerializer):
 class TravelListSerializer(serializers.ModelSerializer):
     route = serializers.SlugRelatedField(slug_field="id", queryset=Route.objects.all())
     origin = serializers.SerializerMethodField()
+    type_bus = serializers.CharField(source='route.bus.type')
+    bus_id = serializers.CharField(source='route.bus.identification')
+    duration = serializers.CharField(source='route.duration')
     destination = serializers.SerializerMethodField()
     departure_date = serializers.SerializerMethodField()
     departure_time = serializers.SerializerMethodField()
     arrival_date = serializers.SerializerMethodField()
     arrival_time = serializers.SerializerMethodField()
+    driver_name = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_driver_name(obj):
+        return '{}'.format(Driver.objects.get(id=obj.driver).fullName)
 
     @staticmethod
     def get_departure_date(obj):
@@ -179,7 +199,8 @@ class TravelListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time', 'available_seats', 'delete']
+                  'arrival_date', 'arrival_time', 'available_seats', 'delete', 'duration', 'state', 'type_bus',
+                  'bus_id', 'ticket_sold', 'driver_name']
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -189,11 +210,26 @@ class TicketSerializer(serializers.ModelSerializer):
 
 
 class TicketListSerializer(serializers.ModelSerializer):
-    travel = TravelSerializer()
+    travel = TravelListSerializer()
     user_id = serializers.CharField(source='user.id')
 
     class Meta:
         model = Ticket
+        fields = '__all__'
+
+
+class CommentListSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+    user = serializers.SlugRelatedField(slug_field="id", queryset=User.objects.all())
+    user_first_name = serializers.CharField(source='user.first_name')
+    user_last_name = serializers.CharField(source='user.last_name')
+
+    @staticmethod
+    def get_date(obj):
+        return '{}'.format(obj.date.strftime("%d/%m/%Y"))
+
+    class Meta:
+        model = Comment
         fields = '__all__'
 
 
@@ -202,7 +238,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_date(obj):
-        return '{}'.format(obj.date.strftime("%d-%m-%Y %H:%M"))
+        return '{}'.format(obj.date.strftime("%d/%m/%Y"))
 
     class Meta:
         model = Comment

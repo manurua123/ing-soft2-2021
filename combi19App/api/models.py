@@ -88,10 +88,12 @@ class Profile(models.Model):
 
 class Travel(models.Model):
     route = models.ForeignKey(Route, on_delete=models.RESTRICT)
+    driver = models.IntegerField(null=False)
     departure_date = models.DateTimeField(null=False)
     arrival_date = models.DateTimeField(null=False)
     price = models.FloatField(null=False)
     available_seats = models.IntegerField(null=False)
+    ticket_sold = models.IntegerField(null=False, default=0)
     stateChoice = [('Pendiente', 'Pendiente'), ('Iniciado', 'Iniciado'),
                    ('Terminado', 'Terminado'), ('Cancelado', 'Cancelado')]
     state = models.CharField(max_length=10, choices=stateChoice, default='Pendiente', null=False)
@@ -114,7 +116,8 @@ class Ticket(models.Model):
     firstName = models.CharField(max_length=60, null=False)
     lastName = models.CharField(max_length=60, null=False)
     email = models.EmailField(null=False)
-    stateChoice = [('Activo', 'Activo'), ('Rechazado', 'Rechazado'), ('Cancelado', 'Cancelado')]
+    stateChoice = [('Activo', 'Activo'), ('Aceptado', 'Aceptado'), ('Rechazado', 'Rechazado'),
+                   ('Devuelto', 'Devuelto'), ('Cancelado', 'Cancelado')]
     state = models.CharField(max_length=9, choices=stateChoice, default='Activo', null=False)
     delete = models.BooleanField(default=False)
 
