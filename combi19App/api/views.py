@@ -471,6 +471,12 @@ class TravelViewSet(viewsets.ModelViewSet):
     queryset = Travel.objects.filter(delete=False).order_by('departure_date')
     serializer_class = TravelListSerializer
 
+    @action(detail=False)
+    def all(self, request):
+        travel = Travel.objects.filter(delete=False).order_by('departure_date')
+        serializer = TravelListSerializer(travel, many=True)
+        return Response(serializer.data)  # status 200
+
     @staticmethod
     # Calcula que no se solapeen los horarios de los viajes
     def is_date_overlap(departure1, departure2, arrival1, arrival2):
@@ -503,7 +509,7 @@ class TravelViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     # Devuelve el listado de viajes pendientes de un chofer determinado
-    # enviar por parametro driver el id de chofer
+    # enviar por parametro driver el id de usuario driver
     def get_travel_pending(self, request):
         travel = Travel.objects.filter(driver=request.GET['driver'], delete=False,
                                        state='Pendiente').order_by('departure_date')
@@ -518,7 +524,7 @@ class TravelViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     # Devuelve el listado de viajes realizados por un chofer determinado
-    # enviar por parametro driver el id de chofer
+    # enviar por parametro driver el id del usuario driver
     def get_travel_over(self, request):
         travel = Travel.objects.filter(driver=request.GET['driver'], delete=False,
                                        state='Terminado').order_by('departure_date')
@@ -551,7 +557,8 @@ class TravelViewSet(viewsets.ModelViewSet):
         travelData['arrival_date'] = datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M").replace(
             tzinfo=timezone.utc)
         route = Route.objects.get(id=travelData['route'])
-        travelData['driver'] = route.bus.driver.pk
+        user = User.objects.get(username=route.driver.email)
+        travelData['driver'] = user.id
         travelData['available_seats'] = route.bus.seatNumbers
         serializer = TravelSerializer(data=travelData)
         serializer.is_valid(raise_exception=True)
@@ -587,7 +594,8 @@ class TravelViewSet(viewsets.ModelViewSet):
         travelData['arrival_date'] = datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M").replace(
             tzinfo=timezone.utc)
         route = Route.objects.get(id=travelData['route'])
-        travelData['driver'] = route.bus.driver.pk
+        user = User.objects.get(username=route.driver.email)
+        travelData['driver'] = user.id
         travelData['available_seats'] = route.bus.seatNumbers
         serializer = TravelSerializer(travel, data=travelData, partial=True)
         serializer.is_valid(raise_exception=True)

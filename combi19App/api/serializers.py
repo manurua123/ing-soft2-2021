@@ -170,7 +170,8 @@ class TravelListSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_driver_name(obj):
-        return '{}'.format(Driver.objects.get(id=obj.driver).fullName)
+        user = User.objects.get(id=obj.driver)
+        return '{}, {}'.format(user.last_name, user.first_name)
 
     @staticmethod
     def get_departure_date(obj):
