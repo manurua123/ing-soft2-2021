@@ -80,6 +80,7 @@ class Profile(models.Model):
     month_exp = models.IntegerField(null=True)
     year_exp = models.IntegerField(null=True)
     security_code = models.CharField(max_length=3, null=True)
+    end_date_suspension = models.DateField(null=True, default=None)
     delete = models.BooleanField(default=False)
 
     def __str__(self):
@@ -117,7 +118,7 @@ class Ticket(models.Model):
     lastName = models.CharField(max_length=60, null=False)
     email = models.EmailField(null=False)
     stateChoice = [('Activo', 'Activo'), ('Aceptado', 'Aceptado'), ('Rechazado', 'Rechazado'),
-                   ('Devuelto', 'Devuelto'), ('Cancelado', 'Cancelado')]
+                   ('Devuelto', 'Devuelto'), ('Cancelado', 'Cancelado'), ('Ausente', 'Ausente')]
     state = models.CharField(max_length=9, choices=stateChoice, default='Activo', null=False)
     delete = models.BooleanField(default=False)
 
