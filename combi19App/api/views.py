@@ -16,7 +16,7 @@ from django.db import transaction
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
     RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
     TravelListSerializer, TicketSerializer, CommentSerializer, TicketListSerializer, ProfileSignSerializer, \
-    UserSignSerializer, UserSerializer, CommentListSerializer
+    UserSignSerializer, UserSerializer, CommentListSerializer, TicketRejectedSerializer
 
 from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel, Comment
 from rest_framework.response import Response
@@ -812,6 +812,21 @@ class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.filter(delete=False)
     serializer_class = TicketSerializer
 
+    @action(detail=False)
+    # Devuelve el listado de tickets rechazados
+    def get_ticket_rejected(self, request):
+        tickets = Ticket.objects.filter(state='Rechazado', delete=False).order_by('-travel__departure_date')
+        if not tickets:
+            data = {
+                'code': 'ticjets_no_exists_error',
+                'message': 'No hay tickets rechazados'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = TicketRejectedSerializer(tickets, many=True)
+        return Response(serializer.data)  # status 200
+
+
+
     @transaction.atomic
     def create(self, request):
         # Registra la venta del pasaje si tiene lugar disponible
@@ -862,7 +877,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         if not tickets:
             data = {
                 'code': 'ticket_no_exists__error',
-                'message': 'El viaje no posee pasajes vendidos'
+                'message': 'No hay pasajes vendidos para este viaje'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         serializer = TicketSerializer(tickets, many=True)
@@ -875,27 +890,34 @@ class TicketViewSet(viewsets.ModelViewSet):
         state = request.data["state"]
         if state == 'Aceptado':
             ticket.state = 'Aceptado'
+            ticket.save()
             data = {
             'code': 'test_register_ok',
             'message': 'Test negativo. El Pasajero ha sido Aceptado'
              }
         elif state == 'Rechazado':
-            ticket.state = 'Rechazado'
-            ticket.amount_paid = ticket.amount_paid / 2
             profile = Profile.objects.get(user=ticket.user)
             profile.end_date_suspension = ticket.travel.departure_date + timedelta(days=15)
             profile.save()
+            tickets_user = Ticket.objects.filter(~Q(state='Devuelto') & ~Q(state='Cancelado'),
+                                                 user=ticket.user, travel__departure_date__gte=ticket.travel.departure_date,
+                                                 travel__departure_date__date__lte=profile.end_date_suspension.date(), delete=False)
+            for record in tickets_user:
+                record.state = 'Rechazado'
+                record.amount_paid = record.amount_paid / 2
+                record.save()
+
             data = {
                 'code': 'test_register_no',
                 'message': 'Test positivo. El Pasajero ha sido Rechazado por riesgoso'
              }
         elif state == 'Ausente':
             ticket.state = 'Ausente'
+            ticket.save()
             data = {
                 'code': 'test_absent',
                 'message': 'El Pasajero no se presento a viajar'
             }
-        ticket.save()
         return Response(data=data, status=status.HTTP_200_OK)
 
 

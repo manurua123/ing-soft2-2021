@@ -1,4 +1,6 @@
 from datetime import datetime
+import json
+from django.forms.models import model_to_dict
 
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
@@ -122,6 +124,7 @@ class UserSignSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
     gold = serializers.SerializerMethodField()
+    user_id = serializers.CharField(source='user.id')
     suspension = serializers.SerializerMethodField()
 
     @staticmethod
@@ -230,6 +233,24 @@ class TravelListSerializer(serializers.ModelSerializer):
 
 
 class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = '__all__'
+
+
+class TicketRejectedSerializer(serializers.ModelSerializer):
+    travel = TravelListSerializer()
+    user = UserSerializer()
+    profile = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_profile(obj):
+        profile = Profile.objects.get(user=obj.user.pk)
+        profile_d = model_to_dict(profile)
+        profile_d['birth_date'] = str(profile_d['birth_date'])
+        profile_d['end_date_suspension'] = str(profile_d['end_date_suspension'])
+        return json.dumps(profile_d)
+
     class Meta:
         model = Ticket
         fields = '__all__'
