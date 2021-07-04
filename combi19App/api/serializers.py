@@ -118,7 +118,7 @@ class UserSignSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'rol']
+        fields = ['username', 'rol', 'id']
 
 
 class ProfileSerializer(serializers.ModelSerializer):
