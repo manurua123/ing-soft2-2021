@@ -111,6 +111,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserSignSerializer(serializers.ModelSerializer):
     rol = serializers.SerializerMethodField()
+    user_id = serializers.CharField(source='id')
 
     @staticmethod
     def get_rol(obj):
@@ -118,7 +119,7 @@ class UserSignSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'rol', 'id']
+        fields = ['username', 'rol', 'user_id']
 
 
 class ProfileSerializer(serializers.ModelSerializer):
