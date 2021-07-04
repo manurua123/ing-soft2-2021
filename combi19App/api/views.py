@@ -548,11 +548,16 @@ class TravelViewSet(viewsets.ModelViewSet):
         }
         return Response(data=data, status=status.HTTP_200_OK)
 
+    @transaction.atomic
     @action(detail=False, methods=['post'])
     def init_travel(self, request):
         travel = Travel.objects.get(id=request.data['travel'])
         travel.state = 'Iniciado'
         travel.save()
+        tickets = Ticket.objects.filter(travel=travel.id, state='Activo')
+        for record in tickets:
+            record.state = 'Ausente'
+            record.save()
         data = {
             'code': 'init_travel',
             'message': 'El viaje se inicio con exito'
@@ -825,8 +830,6 @@ class TicketViewSet(viewsets.ModelViewSet):
         serializer = TicketRejectedSerializer(tickets, many=True)
         return Response(serializer.data)  # status 200
 
-
-
     @transaction.atomic
     def create(self, request):
         # Registra la venta del pasaje si tiene lugar disponible
@@ -892,16 +895,18 @@ class TicketViewSet(viewsets.ModelViewSet):
             ticket.state = 'Aceptado'
             ticket.save()
             data = {
-            'code': 'test_register_ok',
-            'message': 'Test negativo. El Pasajero ha sido Aceptado'
-             }
+                'code': 'test_register_ok',
+                'message': 'Test negativo. El Pasajero ha sido Aceptado'
+            }
         elif state == 'Rechazado':
             profile = Profile.objects.get(user=ticket.user)
             profile.end_date_suspension = ticket.travel.departure_date + timedelta(days=15)
             profile.save()
             tickets_user = Ticket.objects.filter(~Q(state='Devuelto') & ~Q(state='Cancelado'),
-                                                 user=ticket.user, travel__departure_date__gte=ticket.travel.departure_date,
-                                                 travel__departure_date__date__lte=profile.end_date_suspension.date(), delete=False)
+                                                 user=ticket.user,
+                                                 travel__departure_date__gte=ticket.travel.departure_date,
+                                                 travel__departure_date__date__lte=profile.end_date_suspension.date(),
+                                                 delete=False)
             for record in tickets_user:
                 record.state = 'Rechazado'
                 record.amount_paid = record.amount_paid / 2
@@ -910,62 +915,80 @@ class TicketViewSet(viewsets.ModelViewSet):
             data = {
                 'code': 'test_register_no',
                 'message': 'Test positivo. El Pasajero ha sido Rechazado por riesgoso'
-             }
-        elif state == 'Ausente':
-            ticket.state = 'Ausente'
-            ticket.save()
-            data = {
-                'code': 'test_absent',
-                'message': 'El Pasajero no se presento a viajar'
             }
         return Response(data=data, status=status.HTTP_200_OK)
 
-
-@transaction.atomic
-@action(detail=False, methods=['post'])
-def return_ticket(self, request):
-    ticket = Ticket.objects.get(id=request.data["ticket"])
-    if (ticket.travel.state != 'Pendiente') or (ticket.state != 'Activo'):
-        data = {
-            'code': 'ticket_return__error',
-            'message': 'El pasaje no puede ser devuelto'
-        }
-        return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
-    departure_date = ticket.travel.departure_date
-    today = datetime.today().replace(tzinfo=timezone.utc)
-    difference = departure_date - today
-    if difference.days >= 2:
-        data = {
-            'code': 'ticket_total_return__error',
-            'message': 'Se registro la devolucíon del pasaje antes de las 48hs de la fecha del viaje. Se vera'
-                       ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid) + ' '
-                                                                                                         'correspondiente al 100% de lo abonado '
-        }
-        ticket.amount_paid = 0
-    else:
-        if difference.days >= 0:
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def return_ticket(self, request):
+        ticket = Ticket.objects.get(id=request.data["ticket"])
+        if (ticket.travel.state != 'Pendiente') or (ticket.state != 'Activo'):
             data = {
-                'code': 'ticket_partial_return__error',
-                'message': 'Se registro la devolucíon del pasaje dentro de las 48hs de la fecha del viaje. Se vera'
-                           ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid / 2) + ' '
-                                                                                                                 'correspondiente al 50% de lo abonado.'
-            }
-            ticket.amount_paid = ticket.amount_paid / 2
-        else:
-            data = {
-                'code': 'ticket_no_exists__error',
+                'code': 'ticket_return__error',
                 'message': 'El pasaje no puede ser devuelto'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        departure_date = ticket.travel.departure_date
+        today = datetime.today().replace(tzinfo=timezone.utc)
+        difference = departure_date - today
+        if difference.days >= 2:
+            data = {
+                'code': 'ticket_total_return__error',
+                'message': 'Se registro la devolucíon del pasaje antes de las 48hs de la fecha del viaje. Se vera'
+                           ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid) + ' '
+                                                                                                             'correspondiente al 100% de lo abonado '
+            }
+            ticket.amount_paid = 0
+        else:
+            if difference.days >= 0:
+                data = {
+                    'code': 'ticket_partial_return__error',
+                    'message': 'Se registro la devolucíon del pasaje dentro de las 48hs de la fecha del viaje. Se vera'
+                               ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid / 2) + ' '
+                                                                                                                     'correspondiente al 50% de lo abonado.'
+                }
+                ticket.amount_paid = ticket.amount_paid / 2
+            else:
+                data = {
+                    'code': 'ticket_no_exists__error',
+                    'message': 'El pasaje no puede ser devuelto'
+                }
+                return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
 
-    # Volver a agregar 1 asiento disponible en el viaje
-    travel = Travel.objects.get(id=ticket.travel.id)
-    travel.available_seats += 1
-    travel.ticket_sold -= 1
-    travel.save()
-    ticket.state = 'Devuelto'
-    ticket.save()
-    return Response(data=data, status=status.HTTP_200_OK)
+        # Volver a agregar 1 asiento disponible en el viaje
+        travel = Travel.objects.get(id=ticket.travel.id)
+        travel.available_seats += 1
+        travel.ticket_sold -= 1
+        travel.save()
+        ticket.state = 'Devuelto'
+        ticket.save()
+        return Response(data=data, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def simple_buy(self, request):
+        email = request.data["username"]
+        user = User.objects.get(username=email)
+        if user is None:
+            rol = Group.objects.get(name='CLIENT')
+            user = User.objects.create_user(username=email, email=email,
+                                            password=email)
+            rol.user_set.add(user)
+            profile = Profile.objects.create(user=user)
+            profile.save()
+        travel = Travel.objects.get(id=request.data['travel'])
+        ticket = Ticket(email=email, travel=travel, buy_date=datetime.today(), user=user, amount_paid=travel.price)
+        if travel.available_seats <= 0:
+            data = {
+                'code': 'not_seats_error',
+                'message': 'No hay lugares disponibles'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        ticket.save()
+        travel.available_seats -= 1
+        travel.ticket_sold += 1
+        travel.save()
+        return Response(json.dumps(model_to_dict(ticket), sort_keys=True, default=str))  # status 200
 
 
 class CommentViewSet(viewsets.ModelViewSet):

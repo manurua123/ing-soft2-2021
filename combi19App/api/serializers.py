@@ -247,9 +247,7 @@ class TicketRejectedSerializer(serializers.ModelSerializer):
     def get_profile(obj):
         profile = Profile.objects.get(user=obj.user.pk)
         profile_d = model_to_dict(profile)
-        profile_d['birth_date'] = str(profile_d['birth_date'])
-        profile_d['end_date_suspension'] = str(profile_d['end_date_suspension'])
-        return json.dumps(profile_d)
+        return json.dumps(profile_d, sort_keys=True, default=str, ensure_ascii=True)
 
     class Meta:
         model = Ticket
