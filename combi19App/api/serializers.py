@@ -1,3 +1,7 @@
+from datetime import datetime
+import json
+from django.forms.models import model_to_dict
+
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 
@@ -107,6 +111,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserSignSerializer(serializers.ModelSerializer):
     rol = serializers.SerializerMethodField()
+    user_id = serializers.CharField(source='id')
 
     @staticmethod
     def get_rol(obj):
@@ -114,12 +119,20 @@ class UserSignSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'rol']
+        fields = ['username', 'rol', 'user_id']
 
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
     gold = serializers.SerializerMethodField()
+    user_id = serializers.CharField(source='user.id')
+    suspension = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_suspension(obj):
+        if obj.end_date_suspension is None or obj.end_date_suspension < datetime.now().date():
+            return False
+        return True
 
     @staticmethod
     def get_gold(obj):
@@ -135,6 +148,7 @@ class ProfileSignSerializer(serializers.ModelSerializer):
     user_id = serializers.CharField(source='user.id')
     gold = serializers.SerializerMethodField()
     rol = serializers.SerializerMethodField()
+    suspension = serializers.SerializerMethodField()
 
     @staticmethod
     def get_gold(obj):
@@ -144,9 +158,15 @@ class ProfileSignSerializer(serializers.ModelSerializer):
     def get_rol(obj):
         return obj.user.groups.get().name
 
+    @staticmethod
+    def get_suspension(obj):
+        if obj.end_date_suspension is None or obj.end_date_suspension < datetime.now().date():
+            return False
+        return True
+
     class Meta:
         model = Profile
-        fields = ['user', 'rol', 'gold', 'user_id']
+        fields = ['user', 'rol', 'gold', 'user_id', 'suspension']
 
 
 class TravelSerializer(serializers.ModelSerializer):
@@ -167,10 +187,20 @@ class TravelListSerializer(serializers.ModelSerializer):
     arrival_date = serializers.SerializerMethodField()
     arrival_time = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
+    can_init_travel = serializers.SerializerMethodField()
 
     @staticmethod
     def get_driver_name(obj):
-        return '{}'.format(Driver.objects.get(id=obj.driver).fullName)
+        user = User.objects.get(id=obj.driver)
+        return '{}, {}'.format(user.last_name, user.first_name)
+
+    @staticmethod
+    def get_can_init_travel(obj):
+        tickets = Ticket.objects.filter(travel=obj.id)
+        if not tickets:
+            return False
+        else:
+            return not tickets.filter(state='Activo')
 
     @staticmethod
     def get_departure_date(obj):
@@ -199,11 +229,27 @@ class TravelListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Travel
         fields = ['origin', 'destination', 'route', 'id', 'price', 'departure_date', 'departure_time',
-                  'arrival_date', 'arrival_time', 'available_seats', 'delete', 'duration', 'state', 'type_bus',
-                  'bus_id', 'ticket_sold', 'driver_name']
+                  'arrival_date', 'arrival_time', 'available_seats', 'duration', 'state', 'type_bus',
+                  'bus_id', 'ticket_sold', 'can_init_travel', 'driver_name', 'delete']
 
 
 class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = '__all__'
+
+
+class TicketRejectedSerializer(serializers.ModelSerializer):
+    travel = TravelListSerializer()
+    user = UserSerializer()
+    profile = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_profile(obj):
+        profile = Profile.objects.get(user=obj.user.pk)
+        profile_d = model_to_dict(profile)
+        return json.dumps(profile_d, sort_keys=True, default=str, ensure_ascii=True)
+
     class Meta:
         model = Ticket
         fields = '__all__'

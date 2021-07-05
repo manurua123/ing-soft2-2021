@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth.models import User, Group
 from datetimerange import DateTimeRange
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import timezone
 import json
 from django.forms.models import model_to_dict
@@ -16,7 +16,7 @@ from django.db import transaction
 from .serializers import SuppliesSerializer, DriverSerializer, BusSerializer, PlaceListSerializer, RouteSerializer, \
     RouteListSerializer, BusListSerializer, PlaceSerializer, ProfileSerializer, RolSerializer, TravelSerializer, \
     TravelListSerializer, TicketSerializer, CommentSerializer, TicketListSerializer, ProfileSignSerializer, \
-    UserSignSerializer, UserSerializer, CommentListSerializer
+    UserSignSerializer, UserSerializer, CommentListSerializer, TicketRejectedSerializer
 
 from .models import Supplies, Driver, Bus, Place, Route, Profile, Ticket, SuppliesDetail, Travel, Comment
 from rest_framework.response import Response
@@ -471,6 +471,11 @@ class TravelViewSet(viewsets.ModelViewSet):
     queryset = Travel.objects.filter(delete=False).order_by('departure_date')
     serializer_class = TravelListSerializer
 
+    @action(detail=False)
+    def all(self, request):
+        travel = Travel.objects.filter(delete=False).order_by('departure_date')
+        serializer = TravelListSerializer(travel, many=True)
+        return Response(serializer.data)  # status 200
 
     @staticmethod
     # Calcula que no se solapeen los horarios de los viajes
@@ -504,22 +509,36 @@ class TravelViewSet(viewsets.ModelViewSet):
 
     @action(detail=False)
     # Devuelve el listado de viajes pendientes de un chofer determinado
-    # enviar por parametro driver el id de chofer
+    # enviar por parametro driver el id de usuario driver
     def get_travel_pending(self, request):
-        travel = Travel.objects.filter(driver=request.GET['driver'], delete=False,
-                                       state='Pendiente').order_by('departure_date')
+        travel = Travel.objects.filter(Q(state='Pendiente') | Q(state='Iniciado'),
+                                       driver=request.GET['driver']).order_by('departure_date')
         if not travel:
             data = {
                 'code': 'travel_no_exists_today_error',
-                'message': 'No hay viajes disponibles para el día de hoy'
+                'message': 'No posee viajes pendientes'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         serializer = TravelListSerializer(travel, many=True)
         return Response(serializer.data)  # status 200
 
     @action(detail=False)
+    def get_all_travel_pending(self, request):
+        travel = Travel.objects.filter(state='Pendiente').order_by('departure_date')
+        if not travel:
+            data = {
+                'code': 'travel_no_exists_pending_error',
+                'message': 'No existen viajes pendientes'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = TravelListSerializer(travel, many=True)
+        return Response(serializer.data)  # status 200
+
+
+
+    @action(detail=False)
     # Devuelve el listado de viajes realizados por un chofer determinado
-    # enviar por parametro driver el id de chofer
+    # enviar por parametro driver el id del usuario driver
     def get_travel_over(self, request):
         travel = Travel.objects.filter(driver=request.GET['driver'], delete=False,
                                        state='Terminado').order_by('departure_date')
@@ -531,6 +550,50 @@ class TravelViewSet(viewsets.ModelViewSet):
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         serializer = TravelListSerializer(travel, many=True)
         return Response(serializer.data)  # status 200
+
+    @action(detail=False, methods=['post'])
+    def finish_travel(self, request):
+        travel = Travel.objects.get(id=request.data['travel'])
+        travel.state = 'Terminado'
+        travel.save()
+        data = {
+            'code': 'finish_travel',
+            'message': 'El viaje se finalizo con exito'
+        }
+        return Response(data=data, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def init_travel(self, request):
+        travel = Travel.objects.get(id=request.data['travel'])
+        travel.state = 'Iniciado'
+        travel.save()
+        tickets = Ticket.objects.filter(travel=travel.id, state='Activo')
+        for record in tickets:
+            record.state = 'Ausente'
+            record.save()
+        data = {
+            'code': 'init_travel',
+            'message': 'El viaje se inicio con exito'
+        }
+        return Response(data=data, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def cancel_travel(self, request):
+        travel = Travel.objects.get(id=request.data['travel'])
+        travel.state = 'Cancelado'
+        travel.save()
+        tickets = Ticket.objects.filter(travel=travel.id)
+        for record in tickets:
+            record.state = 'Cancelado'
+            record.amount_paid = 0
+            record.save()
+        data = {
+            'code': 'cancel_travel',
+            'message': 'El viaje se ha cancelado'
+        }
+        return Response(data=data, status=status.HTTP_200_OK)
 
     def create(self, request):
         travelData = request.data
@@ -552,7 +615,8 @@ class TravelViewSet(viewsets.ModelViewSet):
         travelData['arrival_date'] = datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M").replace(
             tzinfo=timezone.utc)
         route = Route.objects.get(id=travelData['route'])
-        travelData['driver'] = route.bus.driver.pk
+        user = User.objects.get(username=route.driver.email)
+        travelData['driver'] = user.id
         travelData['available_seats'] = route.bus.seatNumbers
         serializer = TravelSerializer(data=travelData)
         serializer.is_valid(raise_exception=True)
@@ -588,7 +652,8 @@ class TravelViewSet(viewsets.ModelViewSet):
         travelData['arrival_date'] = datetime.strptime(travelData['arrival_date'], "%d-%m-%Y %H:%M").replace(
             tzinfo=timezone.utc)
         route = Route.objects.get(id=travelData['route'])
-        travelData['driver'] = route.bus.driver.pk
+        user = User.objects.get(username=route.driver.email)
+        travelData['driver'] = user.id
         travelData['available_seats'] = route.bus.seatNumbers
         serializer = TravelSerializer(travel, data=travelData, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -766,6 +831,19 @@ class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.filter(delete=False)
     serializer_class = TicketSerializer
 
+    @action(detail=False)
+    # Devuelve el listado de tickets rechazados
+    def get_ticket_rejected(self, request):
+        tickets = Ticket.objects.filter(state='Rechazado', delete=False).order_by('-travel__departure_date')
+        if not tickets:
+            data = {
+                'code': 'ticjets_no_exists_error',
+                'message': 'No hay tickets rechazados'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = TicketRejectedSerializer(tickets, many=True)
+        return Response(serializer.data)  # status 200
+
     @transaction.atomic
     def create(self, request):
         # Registra la venta del pasaje si tiene lugar disponible
@@ -811,32 +889,47 @@ class TicketViewSet(viewsets.ModelViewSet):
     # Devuelve el listado de tickets de un viaje determinado
     # Enviar por parametro en travel el id  del viaje
     def get_tickets_travel(self, request):
-        tickets = Ticket.objects.filter(travel=request.GET['travel']).order_by('id')
+        tickets = Ticket.objects.filter(~Q(state='Devuelto') & ~Q(state='Cancelado'),
+                                        travel=request.GET['travel']).order_by('id')
         if not tickets:
             data = {
                 'code': 'ticket_no_exists__error',
-                'message': 'El viaje no posee pasajes vendidos'
+                'message': 'No hay pasajes vendidos para este viaje'
             }
             return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
         serializer = TicketSerializer(tickets, many=True)
         return Response(serializer.data)  # status 200
 
+    @transaction.atomic
     @action(detail=False, methods=['post'])
     def test_result(self, request):
         ticket = Ticket.objects.get(id=request.data["ticket"])
-        if request.data["test"]:
+        state = request.data["state"]
+        if state == 'Aceptado':
             ticket.state = 'Aceptado'
+            ticket.save()
             data = {
                 'code': 'test_register_ok',
                 'message': 'Test negativo. El Pasajero ha sido Aceptado'
             }
-        else:
-            ticket.state = 'Rechazado'
+        elif state == 'Rechazado':
+            profile = Profile.objects.get(user=ticket.user)
+            profile.end_date_suspension = ticket.travel.departure_date + timedelta(days=15)
+            profile.save()
+            tickets_user = Ticket.objects.filter(~Q(state='Devuelto') & ~Q(state='Cancelado'),
+                                                 user=ticket.user,
+                                                 travel__departure_date__gte=ticket.travel.departure_date,
+                                                 travel__departure_date__date__lte=profile.end_date_suspension.date(),
+                                                 delete=False)
+            for record in tickets_user:
+                record.state = 'Rechazado'
+                record.amount_paid = record.amount_paid / 2
+                record.save()
+
             data = {
                 'code': 'test_register_no',
                 'message': 'Test positivo. El Pasajero ha sido Rechazado por riesgoso'
             }
-        ticket.save()
         return Response(data=data, status=status.HTTP_200_OK)
 
     @transaction.atomic
@@ -859,6 +952,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                            ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid) + ' '
                                                                                                              'correspondiente al 100% de lo abonado '
             }
+            ticket.amount_paid = 0
         else:
             if difference.days >= 0:
                 data = {
@@ -867,6 +961,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                                ' reflejado en su proximo resumen un reintegro de $ ' + str(ticket.amount_paid / 2) + ' '
                                                                                                                      'correspondiente al 50% de lo abonado.'
                 }
+                ticket.amount_paid = ticket.amount_paid / 2
             else:
                 data = {
                     'code': 'ticket_no_exists__error',
@@ -882,6 +977,31 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.state = 'Devuelto'
         ticket.save()
         return Response(data=data, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def simple_buy(self, request):
+        email = request.data["username"]
+        user = User.objects.filter(username=email)
+        if not user:
+            rol = Group.objects.get(name='CLIENT')
+            user = User.objects.create_user(username=email, email=email,
+                                            password=email)
+            rol.user_set.add(user)
+            profile = Profile.objects.create(user=user)
+            profile.save()
+        user = User.objects.get(username=email)
+        travel = Travel.objects.get(id=request.data['travel'])
+        profile = Profile.objects.get(user=user.id)
+        ticket = Ticket(idCards=profile.idCards, birth_date=profile.birth_date,
+                        phone=profile.phone, firstName=user.first_name,
+                        lastName=user.last_name, email=email,
+                        travel=travel, buy_date=datetime.today(), user=user, amount_paid=travel.price)
+        ticket.save()
+        travel.available_seats -= 1
+        travel.ticket_sold += 1
+        travel.save()
+        return Response(json.dumps(model_to_dict(ticket), sort_keys=True, default=str))  # status 200
 
 
 class CommentViewSet(viewsets.ModelViewSet):
