@@ -523,6 +523,20 @@ class TravelViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)  # status 200
 
     @action(detail=False)
+    def get_all_travel_pending(self, request):
+        travel = Travel.objects.filter(state='Pendiente').order_by('departure_date')
+        if not travel:
+            data = {
+                'code': 'travel_no_exists_pending_error',
+                'message': 'No existen viajes pendientes'
+            }
+            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        serializer = TravelListSerializer(travel, many=True)
+        return Response(serializer.data)  # status 200
+
+
+
+    @action(detail=False)
     # Devuelve el listado de viajes realizados por un chofer determinado
     # enviar por parametro driver el id del usuario driver
     def get_travel_over(self, request):
@@ -968,22 +982,21 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def simple_buy(self, request):
         email = request.data["username"]
-        user = User.objects.get(username=email)
-        if user is None:
+        user = User.objects.filter(username=email)
+        if not user:
             rol = Group.objects.get(name='CLIENT')
             user = User.objects.create_user(username=email, email=email,
                                             password=email)
             rol.user_set.add(user)
             profile = Profile.objects.create(user=user)
             profile.save()
+        user = User.objects.get(username=email)
         travel = Travel.objects.get(id=request.data['travel'])
-        ticket = Ticket(email=email, travel=travel, buy_date=datetime.today(), user=user, amount_paid=travel.price)
-        if travel.available_seats <= 0:
-            data = {
-                'code': 'not_seats_error',
-                'message': 'No hay lugares disponibles'
-            }
-            return Response(data=data, status=status.HTTP_400_BAD_REQUEST)
+        profile = Profile.objects.get(user=user.id)
+        ticket = Ticket(idCards=profile.idCards, birth_date=profile.birth_date,
+                        phone=profile.phone, firstName=user.first_name,
+                        lastName=user.last_name, email=email,
+                        travel=travel, buy_date=datetime.today(), user=user, amount_paid=travel.price)
         ticket.save()
         travel.available_seats -= 1
         travel.ticket_sold += 1
